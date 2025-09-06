@@ -19,13 +19,13 @@ void setup() {
 
 void loop() {
   // ---- Ir hacia adelante una vuelta ----
-  stepper.moveTo(-16*STEPS_PER_REV);
+  stepper.moveTo(-8*STEPS_PER_REV);
   stepper.runToPosition();
 
   // ---- Reiniciar el origen para consistencia ----
   stepper.setCurrentPosition(0);
 
-  stepper.moveTo(16*STEPS_PER_REV);
+  stepper.moveTo(8*STEPS_PER_REV);
   stepper.runToPosition();
 
   stepper.setCurrentPosition(0);

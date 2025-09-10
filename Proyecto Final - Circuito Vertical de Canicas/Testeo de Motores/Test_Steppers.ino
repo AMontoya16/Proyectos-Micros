@@ -6,26 +6,27 @@
 
 #include <AccelStepper.h>
 
-// Driver con 2 pines: STEP=2, DIR=5
-AccelStepper stepper(AccelStepper::DRIVER, 2, 5);
+// Definimos STEP en PA0 y DIR en PA1
+#define STEP_PIN PA0
+#define DIR_PIN  PA1
 
-const int STEPS_PER_REV = 200; // ajusta según tu motor/driver
+AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
+
+const int STEPS_PER_REV = 200;
 
 void setup() {
-  stepper.setMaxSpeed(1000);       // velocidad máxima
-  stepper.setAcceleration(500);   // aceleración
-  stepper.setCurrentPosition(0);  // referencia inicial
+  stepper.setMaxSpeed(1000);
+  stepper.setAcceleration(500);
+  stepper.setCurrentPosition(0);
 }
 
 void loop() {
-  // ---- Ir hacia adelante una vuelta ----
-  stepper.moveTo(-8*STEPS_PER_REV);
+  stepper.moveTo(-4 * STEPS_PER_REV);
   stepper.runToPosition();
 
-  // ---- Reiniciar el origen para consistencia ----
   stepper.setCurrentPosition(0);
 
-  stepper.moveTo(8*STEPS_PER_REV);
+  stepper.moveTo(2 * STEPS_PER_REV);
   stepper.runToPosition();
 
   stepper.setCurrentPosition(0);

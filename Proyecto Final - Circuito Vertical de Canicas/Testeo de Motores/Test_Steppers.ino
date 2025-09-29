@@ -2,6 +2,7 @@
    Controlling a stepper with AccelStepper library
    Modified so that 0 is always consistent
    and the motor makes one full turn forward and back
+   Con pausa de 2 segundos en cada extremo
 */
 
 #include <AccelStepper.h>
@@ -21,13 +22,17 @@ void setup() {
 }
 
 void loop() {
-  stepper.moveTo(-8 * STEPS_PER_REV);
+  // Giro hacia la izquierda
+  stepper.moveTo(-10 * STEPS_PER_REV);
   stepper.runToPosition();
+  delay(1000);   // espera 2 segundos
 
   stepper.setCurrentPosition(0);
 
-  stepper.moveTo(8 * STEPS_PER_REV);
+  // Giro hacia la derecha
+  stepper.moveTo(10 * STEPS_PER_REV);
   stepper.runToPosition();
+  delay(1000);   // espera 2 segundos
 
   stepper.setCurrentPosition(0);
 }

@@ -1,6 +1,8 @@
+# Tienen que instalar PyQt6 con pip install PyQt6 desde la terminal
+import os
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap,QIcon
 from PyQt6.QtCore import Qt, QUrl, QPropertyAnimation, QEasingCurve
 
 class VentanaPrincipal(QMainWindow): # Aquí se genera la ventana principal y el título de la ventana
@@ -15,11 +17,13 @@ class VentanaPrincipal(QMainWindow): # Aquí se genera la ventana principal y el
         layout = QVBoxLayout()
         central_widget.setLayout(layout)
         central_widget.setStyleSheet("background-color: #F0EBEB;")
-
+        pathicono= os.path.join(os.path.dirname(__file__), "pixel art of a micro.png")  
+        self.setWindowIcon(QIcon(pathicono))  # No esta leyendo la imagen, descargar y probar en la misma carpeta
 
         # Logo de la institución en la esquina superior izquierda
         logo_label = QLabel()
-        logo_pixmap = QPixmap('LogoTEC_.png')
+        pathlogo = os.path.join(os.path.dirname(__file__), "LogoTEC_.png")  # No esta leyendo la imagen, descargar y probar en la misma carpeta
+        logo_pixmap = QPixmap(pathlogo)
         logo_label.setPixmap(logo_pixmap)
         logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         layout.addWidget(logo_label, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)

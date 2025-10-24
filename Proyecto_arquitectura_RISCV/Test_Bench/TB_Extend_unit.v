@@ -29,7 +29,7 @@ Extend_unit prueba(imm, immsrc, salida);
 initial begin 
 imm = 25'd90;
 immsrc= 2'b00; 
-#10; 
+#10;
 immsrc= 2'b01;
 #10; 
 immsrc= 2'b10; 

@@ -27,8 +27,8 @@ always @(*)begin
         2'b00: salida = {{20{inst[31]}},inst[31:20]};
     //tipo S 
         2'b01: salida = {{20{inst[31]}}, inst[31:25], inst[11:7]};
-    //tipo B
-        2'b10: salida = {{20{inst[31]}}, inst[7], inst[30:25], inst[11:8], 1'b0};
+    //tipo U
+        2'b10: salida = {inst[31:12], 12'b0};
     //tipo j 
         2'b11: salida = {{12{inst[31]}}, inst[19:12], inst[20], inst[30:21], 1'b0};
         default: salida = 32'd0; 

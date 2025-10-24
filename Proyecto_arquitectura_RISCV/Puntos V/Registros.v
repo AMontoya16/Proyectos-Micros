@@ -32,7 +32,7 @@ initial begin
 end
 
 always @(posedge clk) begin 
-    if(RegWrite == 1'b1) begin 
+    if(RegWrite == 1'b1 && A3 != 5'b00000) begin 
         Register[A3] <= write; 
     end 
 end 

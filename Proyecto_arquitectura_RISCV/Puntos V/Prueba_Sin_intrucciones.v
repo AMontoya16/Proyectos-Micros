@@ -20,14 +20,23 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module Prueba_Sin_intrucciones(input MemWrite,ALUSrc,RegWrite,clk,
-                               input[1:0]ALUControl,ImmSrc,ResultScr,PCSrc,
+module Prueba_Sin_intrucciones(input clk,
                                input [31:0] intruccion,
                                output [31:0] ALU_Result_debug,result_debug,A3,operando_B,
                                ImmExt_debug,PC_debug);
-
+//Se utilizan distintos cables para el datapath
 wire[31:0]SrcA, SrcB,write_data,ImmExt,PC,PC_plus_four,PC_target,PC_Next
           ,Next_PC,ALU_Result,read_data,result; 
+          
+// se inicializan los cables de la unidad de control. 
+wire MemWrite,ALUSrc,RegWrite; 
+wire [1:0] ALUControl,ImmSrc,ResultScr,PCSrc;       
+
+// se define la unidad de control:
+// se entregan el opcode, el funct3 y funt7 y se generan todas las señales de control
+ControlUnit control (intruccion[6:0], intruccion[31:25],intruccion[14:12],
+                     ResultScr, MemWrite, ALUSrc, ImmSrc, RegWrite, 
+                     ALUControl, PCSrc); 
 //Se colocan los registros
 Registros Register_File(clk, RegWrite, intruccion[19:15],intruccion[24:20],intruccion[11:7],result,
                         SrcA,write_data); 

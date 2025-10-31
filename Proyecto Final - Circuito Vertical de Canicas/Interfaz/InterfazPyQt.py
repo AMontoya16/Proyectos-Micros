@@ -1,4 +1,4 @@
-# Tienen que instalar PyQt6 con pip install PyQt6 desde la terminal
+# Tienen que instalar PyQt6 con: pip install PyQt6
 import os, sys
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt
+from smbus import SMBus
 
 
 class VentanaPrincipal(QMainWindow):
@@ -15,19 +16,19 @@ class VentanaPrincipal(QMainWindow):
         self.resize(600, 500)
 
         # Estado
-        self.modo = None                  # "trayectoria" | "tiempo_real"
-        self.trayectoria = []             # lista de selección
-        self.s_seleccionada = None        # columna del S elegido (0..2)
-        self.esperando_senal = False      # tiempo real: bloqueo inicial
+        self.modo = None
+        self.trayectoria = []
+        self.s_seleccionada = None
+        self.esperando_senal = False
 
-        # Widget central y layout principal
+        # Widget central
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         self.layout = QVBoxLayout()
         central_widget.setLayout(self.layout)
         central_widget.setStyleSheet("background-color: #F0EBEB;")
 
-        # Ícono de la ventana
+        # Ícono
         pathicono = os.path.join(os.path.dirname(__file__), "pixel art of a micro.png")
         if os.path.exists(pathicono):
             self.setWindowIcon(QIcon(pathicono))
@@ -45,16 +46,16 @@ class VentanaPrincipal(QMainWindow):
             "<b>Proyecto MT-7003</b><br>"
             "<b>Microcontroladores y Microprocesadores</b><br><br>"
             "Cristhian Araya Chaves - 2022067611<br>"
-            "Jason Brenes Vázquez<br>"
+            "Jason Brenes Vázquez - 2023057374<br>"
             "Greivin Esquivel Salazar<br>"
-            "Andrés Montoya Viales<br><br>"
+            "Andrés Montoya Viales - 2023063390 <br><br>"
             "II Semestre 2025"
         )
         self.presentacion_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.presentacion_label.setStyleSheet("font-size: 30px; font-family: Arial, 'MSI Sans Serif'; color: #303030;")
         self.layout.addWidget(self.presentacion_label)
 
-        # Botones principales juntos (horizontal)
+        # Botones principales
         botones_layout = QHBoxLayout()
         botones_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.Boton_inicio = QPushButton("Trayectoria")
@@ -67,7 +68,7 @@ class VentanaPrincipal(QMainWindow):
         botones_layout.addWidget(self.Boton_TR)
         self.layout.addLayout(botones_layout)
 
-        # Botón Atrás (rojo)
+        # Botón Atrás
         self.boton_atras = QPushButton("Atrás")
         self.boton_atras.setFixedSize(120, 45)
         self.boton_atras.setStyleSheet("""
@@ -88,7 +89,7 @@ class VentanaPrincipal(QMainWindow):
         self.layout.addWidget(self.boton_atras, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         self.boton_atras.hide()
 
-        # Barra de señal (solo tiempo real)
+        # Barra de señal
         barra_senal = QHBoxLayout()
         barra_senal.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.entrada_senal = QLineEdit()
@@ -104,17 +105,16 @@ class VentanaPrincipal(QMainWindow):
         self.entrada_senal.hide()
         self.boton_senal.hide()
 
-        # Contenedor para matriz más arriba (alineado arriba-izquierda con margen)
+        # Matriz
         self.matriz_layout = QVBoxLayout()
         self.matriz_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.layout.addLayout(self.matriz_layout)
 
         contenedor_matriz = QHBoxLayout()
         contenedor_matriz.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        contenedor_matriz.setContentsMargins(20, 0, 0, 0)  # margen izquierdo
+        contenedor_matriz.setContentsMargins(20, 0, 0, 0)
         self.matriz_layout.addLayout(contenedor_matriz)
 
-        # Matriz y controles
         self.grid_widget = QWidget()
         self.malla = QGridLayout(self.grid_widget)
         self.malla.setHorizontalSpacing(5)
@@ -138,23 +138,22 @@ class VentanaPrincipal(QMainWindow):
                 fila_botones.append(boton)
             self.botones.append(fila_botones)
 
-        # Botón Destino bajo la matriz (colspan 3 y centrado)
+        # Botón Destino
         self.boton_destino = QPushButton("Destino")
         self.boton_destino.setFixedHeight(50)
         self.boton_destino.setStyleSheet(self.seleccionable())
         self.boton_destino.clicked.connect(self.accion_destino)
         self.malla.addWidget(self.boton_destino, 4, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
-
         contenedor_matriz.addWidget(self.grid_widget, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # Botón Reiniciar alineado a la izquierda, justo debajo
+        # Botón Reiniciar
         self.boton_reiniciar = QPushButton("Reiniciar")
         self.boton_reiniciar.setFixedHeight(45)
         self.boton_reiniciar.setStyleSheet(self.seleccionable())
         self.boton_reiniciar.clicked.connect(self.accion_reiniciar)
         self.matriz_layout.addWidget(self.boton_reiniciar, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # Ocultar matriz y controles hasta entrar a modo
+        # Ocultar matriz al inicio
         self.grid_widget.hide()
         self.boton_destino.hide()
         self.boton_reiniciar.hide()
@@ -193,7 +192,7 @@ class VentanaPrincipal(QMainWindow):
                 font-family: MSI Sans Serif;
             }"""
 
-    # ---------------- Pantallas ----------------
+    # ---------------- Lógica de la interfaz ----------------
     def mostrar_pantalla_inicial(self):
         self.grid_widget.hide()
         self.boton_destino.hide()
@@ -214,7 +213,6 @@ class VentanaPrincipal(QMainWindow):
         self.Boton_inicio.hide()
         self.Boton_TR.hide()
         self.boton_atras.show()
-
         if modo == "tiempo_real":
             self.entrada_senal.show()
             self.boton_senal.show()
@@ -223,7 +221,6 @@ class VentanaPrincipal(QMainWindow):
             self.entrada_senal.hide()
             self.boton_senal.hide()
             self.esperando_senal = False
-
         self.grid_widget.show()
         self.boton_destino.show()
         self.boton_reiniciar.show()
@@ -231,22 +228,19 @@ class VentanaPrincipal(QMainWindow):
         if self.modo == "tiempo_real":
             self.aplicar_bloqueo_total(True)
 
-    # ---------------- Lógica de selección ----------------
+    # ---------------- Lógica de botones ----------------
     def boton_presionado(self, fila, columna, texto):
         if self.modo == "tiempo_real" and self.esperando_senal:
             return
         boton = self.botones[fila][columna]
         if not boton.isEnabled():
             return
-
-        # Selección de S1..S3
         if fila == 0:
             self.s_seleccionada = columna
             for j, b in enumerate(self.botones[0]):
                 if j != columna:
                     b.setEnabled(False)
                     b.setStyleSheet(self.difuminado())
-            # Habilitar solo el número debajo del S elegido
             for f in (1, 2, 3):
                 for c in (0, 1, 2):
                     btn = self.botones[f][c]
@@ -257,21 +251,13 @@ class VentanaPrincipal(QMainWindow):
                         btn.setEnabled(False)
                         btn.setStyleSheet(self.difuminado())
             self.registrar_seleccion(texto)
-
-        # Selección de números
         elif fila in (1, 2, 3):
             self.registrar_seleccion(texto)
-            # Adyacentes: izquierda, derecha, abajo
             ady = self.calcular_adyacentes(fila, columna)
             self.habilitar_solo(ady)
-            # Bloquear filas anteriores (incluye S)
             self.bloquear_filas_hasta(fila - 1)
-
-        # Mensaje en trayectoria
         if self.modo == "trayectoria":
             print(f"Se ha seleccionado {texto}")
-
-        # Tiempo real: mantener un único valor
         if self.modo == "tiempo_real" and len(self.trayectoria) > 1:
             self.trayectoria = [self.trayectoria[-1]]
 
@@ -305,14 +291,43 @@ class VentanaPrincipal(QMainWindow):
                 b.setStyleSheet(self.difuminado())
 
     def registrar_seleccion(self, texto):
+        if texto == "S1":
+            texto = -1
+        elif texto == "S2":
+            texto = -2
+        elif texto == "S3":
+            texto = -3
+        elif texto == "Destino":
+            texto = 99
+        else:
+            texto = int(texto)
         self.trayectoria.append(texto)
 
-    # ---------------- Señal externa (tiempo real) ----------------
+    # ---------------- Acciones principales ----------------
+    def accion_destino(self):
+        # Agregar destino si no está
+        if 99 not in self.trayectoria:
+            self.trayectoria.append(99)
+
+        # Excluir los valores de inicio (-1, -2, -3)
+        trayectoria_filtrada = [x for x in self.trayectoria if x not in (-1, -2, -3)]
+
+        if self.modo == "trayectoria":
+            print(f"Resultado trayectoria (entera): {trayectoria_filtrada}")
+            print("Resultado trayectoria (formato flechas):", " -> ".join(map(str, trayectoria_filtrada)))
+        else:
+            print("Tiempo real - último valor:", trayectoria_filtrada[-1] if trayectoria_filtrada else "N/A")
+
+    def accion_reiniciar(self):
+        self.reset_estado()
+        if self.modo == "tiempo_real":
+            self.esperando_senal = True
+            self.aplicar_bloqueo_total(True)
+
     def recibir_senal_externa(self):
         valor = self.entrada_senal.text().strip()
         if valor:
             self.esperando_senal = False
-            # Tras señal, permitir elegir S1..S3 y bloquear números
             for j, b in enumerate(self.botones[0]):
                 b.setEnabled(True)
                 b.setStyleSheet(self.seleccionable())
@@ -323,19 +338,6 @@ class VentanaPrincipal(QMainWindow):
                     btn.setStyleSheet(self.difuminado())
             print(f"Señal externa recibida: {valor}")
 
-    # ---------------- Destino y Reiniciar ----------------
-    def accion_destino(self):
-        if self.modo == "trayectoria":
-            print("Resultado trayectoria:", " -> ".join(self.trayectoria))
-        else:
-            print("Tiempo real - último valor:", self.trayectoria[-1] if self.trayectoria else "N/A")
-
-    def accion_reiniciar(self):
-        self.reset_estado()
-        if self.modo == "tiempo_real":
-            self.esperando_senal = True
-            self.aplicar_bloqueo_total(True)
-
     def aplicar_bloqueo_total(self, bloquear=True):
         for fila in self.botones:
             for b in fila:
@@ -345,17 +347,19 @@ class VentanaPrincipal(QMainWindow):
     def reset_estado(self):
         self.trayectoria.clear()
         self.s_seleccionada = None
-        for f in range(len(self.botones)):
-            for c in range(len(self.botones[f])):
-                b = self.botones[f][c]
+        for fila in self.botones:
+            for b in fila:
                 b.setEnabled(True)
                 b.setStyleSheet(self.seleccionable())
 
-# Esto ejecuta la aplicación
+
+# --------- Ejecución principal ---------
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ventana = VentanaPrincipal()
     ventana.show()
     sys.exit(app.exec())
+
+
 
 

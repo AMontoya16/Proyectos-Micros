@@ -48,6 +48,8 @@ initial begin
     MemW  = 1'b0; 
     A1 = 32'd0;
     #18; 
-    A1 = 32'd4;  
+    A1 = 32'hfffffffc;
+    write = 32'd80;
+    MemW  = 1'b1;
 end 
 endmodule

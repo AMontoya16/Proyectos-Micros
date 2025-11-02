@@ -23,7 +23,7 @@
 module Registro_PC(input clk, input[31:0] D, output reg [31:0] Q);
 
 initial begin
-    Q = 32'd0; 
+    Q = 32'h114; 
 end
 
 always @(posedge clk)begin 

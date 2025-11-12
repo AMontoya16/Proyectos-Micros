@@ -31,25 +31,26 @@ void loop() {
   int estado2 = digitalRead(pinEntrada2);
   int estado3 = digitalRead(pinEntrada3); 
   // Lógica de control
+  // se gira 90 grados en direccion de las manecillas del reloj par dejar caer las canicas
   if (estado1 == HIGH) {
-    servoMotor1.write(0);   // Posición 90°
+    servoMotor1.write(90);   // Posición 90°
     Serial.println("Servo a 90 grados");
-    delay(5000);
+    delay(2000);
   } 
   else if (estado2 == HIGH) {
-    servoMotor2.write(0);  // Posición 180°
+    servoMotor2.write(90);  // Posición 90°
     Serial.println("Servo a 180 grados");
-    delay(5000);
+    delay(2000);
   } 
     else if (estado3 == HIGH) {
-    servoMotor3.write(0);  // Posición 180°
+    servoMotor3.write(90);  // Posición 90°
     Serial.println("Servo a 180 grados");
-    delay(5000); 
+    delay(2000); 
   } 
   else {
-    servoMotor1.write(90);    // Ninguna entrada: posición 0°
-    servoMotor2.write(90); 
-    servoMotor3.write(90); 
+    servoMotor1.write(180);    // Ninguna entrada: posición 180°
+    servoMotor2.write(180);     //Posicion de esperar para dejar caer la canica
+    servoMotor3.write(180); 
     Serial.println("Servo a 0 grados");
   }
 

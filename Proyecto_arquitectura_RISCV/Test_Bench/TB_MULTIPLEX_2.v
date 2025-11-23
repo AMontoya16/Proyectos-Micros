@@ -26,15 +26,15 @@ module TB_MULTIPLEX_2;
     wire[31:0] salida; 
 MULTIPLEX_2 prueba(A,B,control,salida); 
 initial begin
-    A = 32'd50; 
+    A = 32'd50; //se inicalizan las entradas 
     B = 32'd100;
     control = 1'b0;
     #10;
-    control = 1'b1;
+    control = 1'b1;//se verifica que se muestre la entrada a y b 
     #10; 
-    A = 32'd90; 
+    A = 32'd90; //se otorga otro valor 
     B = 32'd800;
-    control = 1'b0;
+    control = 1'b0;//se verifica que se muestre la entrada a y b
     #10;
     control = 1'b1;
 end 

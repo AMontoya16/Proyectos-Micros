@@ -21,20 +21,22 @@
 
 
 module TB_Registro_PC;
-reg clk; 
+reg clk,reset; 
 reg [31:0] entrada; 
 wire [31:0] salida; 
-Registro_PC prueba(clk,entrada,salida); 
+Registro_PC prueba(clk,reset,entrada,salida); 
 
 initial begin
     clk = 0;
     forever #5 clk = ~clk;  // periodo de 10 ns -> frecuencia de 100 MHz 
  end
-initial begin 
-entrada = 32'd1; 
+initial begin//se inicializan las variables
+reset = 1'b0; 
+entrada = 32'd1; //se entrega un valor y se espera 1 ciclo de reloj
 #10; 
-entrada = 32'd10;
+entrada = 32'd10;//se cambia el valor y es vuelve esperar 
 #10; 
-entrada = 32'd15; 
+entrada = 32'd15;// se cambia el valor de entrada 
+reset = 1'b1;  //pero se reinicia el sistema. 
 end 
 endmodule

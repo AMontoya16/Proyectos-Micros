@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 31.10.2025 15:42:04
+// Create Date: 23.11.2025 11:06:20
 // Design Name: 
-// Module Name: TB_MicroArquitectura_RISCV
+// Module Name: TB_MicroArquitectura_RISCV1
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,14 +20,10 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module TB_MicroArquitectura_RISCV_DEBUG; 
-reg clk,reset; 
-wire [31:0] ALU_Result_debug,result_debug,A3,operando_B,ImmExt_debug,PC_debug,
-            SrcA_debug,read_data_debug,write_data_debug,A1,A2,PC_Next_debug; 
+module TB_MicroArquitectura_RISCV1;
+reg clk, reset; 
 
-MicroArquitectura_RISCV_DEBUG prueba(clk,reset,ALU_Result_debug,result_debug,
-                               A3,operando_B, ImmExt_debug,PC_debug,
-                               SrcA_debug,read_data_debug,write_data_debug,A1,A2,PC_Next_debug); 
+MicroArquitectura_RISCV1 prueba(clk, reset); 
 
 initial begin
     clk = 0;
@@ -37,4 +33,5 @@ initial begin
     reset = 1'b0; 
     #545 reset = 1'b1;//una vez ejecutado todo el codigo se activa el reset
 end
-endmodule 
+
+endmodule

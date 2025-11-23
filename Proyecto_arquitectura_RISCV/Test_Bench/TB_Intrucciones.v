@@ -27,7 +27,7 @@ module TB_Intrucciones;
     Intrucciones prueba(A,read); 
     
 initial begin
-    A = 32'd148;
+    A = 32'd148;// se inicializa la direccion del codigo 
     forever #5 A = A + 4'd4;  // periodo de 10 ns -> frecuencia de 100 MHz
  end
 

@@ -25,9 +25,9 @@ module TB_Sumador;
     wire[31:0] salida; 
 Sumador prueba (A,B,salida); 
 initial begin 
-    A = 32'd50; 
+    A = 32'd50; //se inicializan las variables 
     B = 32'd100;
-    #10;
+    #10;//se cambia el valor cada 10 nanosgundos 
     A = 32'd200; 
     B = 32'd1;
     #10;

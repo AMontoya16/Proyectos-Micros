@@ -21,12 +21,12 @@
 
 
 module TB_Registros; 
-reg clk,RegW; 
+reg clk,reset,RegW; 
 reg [4:0]A1,A2,A3;
 reg [31:0] write; 
 wire [31:0] R1,R2; 
 
-Registros pruebas (clk, RegW, A1,A2,A3,write,R1,R2); 
+Registros pruebas (clk, reset,RegW, A1,A2,A3,write,R1,R2); 
 
  initial begin
     clk = 0;
@@ -37,6 +37,7 @@ RegW = 1'b0;
 A1 = 5'b00000; 
 A2 = 5'b00010; 
 A3 = 5'b00000;// se busca escribir en el registro 0, pero este no se puede editar 
+reset = 1'b0; 
 write = 32'd50; 
 #10; 
 RegW = 1'd1; // en el R1 se tiene ver 0 siempre
@@ -56,6 +57,8 @@ RegW = 1'b1;
 RegW = 1'b0; // se muestran ambos registros
 A1 = 5'b00001; 
 A2 = 5'b00101;
+#18;
+reset = 1'b1; // se reinicia el registro. 
 end 
 
 

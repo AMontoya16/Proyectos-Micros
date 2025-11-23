@@ -27,7 +27,7 @@ wire [31:0] salida;
 Extend_unit prueba(imm, immsrc, salida); 
 
 initial begin 
-imm = 25'd90;
+imm = 25'd90;//se inicializan las variables 
 immsrc= 2'b00; 
 #10;
 immsrc= 2'b01;

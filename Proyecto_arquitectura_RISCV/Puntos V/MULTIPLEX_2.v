@@ -21,12 +21,12 @@
 
 
 module MULTIPLEX_2(input[31:0]entrada_A,entrada_B,input Control,output reg [31:0] salida);
-
+//se tiene dos entradas de 32 bits, una señal de control para elegir la salida del mismo tamaño
 
 always @(*) begin //Siempre que una entrada cambie 
         case (Control)
-            1'b0: salida = entrada_A ;   // Suma
-            1'b1: salida = entrada_B;  // Desplazamiento a la derecha
+            1'b0: salida = entrada_A ;//salida == A    
+            1'b1: salida = entrada_B;//salida == B 
             default: salida  = 32'd0;
         endcase
 end

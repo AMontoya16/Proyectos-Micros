@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 31.10.2025 15:38:28
+// Create Date: 23.11.2025 10:46:19
 // Design Name: 
-// Module Name: MicroArquitectura_RISCV
+// Module Name: MicroArquitectura_RISCV1
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,10 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module MicroArquitectura_RISCV_DEBUG(input clk, input reset, 
-                               output [31:0] ALU_Result_debug,result_debug,A3,operando_B,
-                               ImmExt_debug,PC_debug,SrcA_debug,read_data_debug,write_data_debug,
-                               A1,A2,PC_Next_debug);
+module MicroArquitectura_RISCV1(input clk, input reset);
 //Se utilizan distintos cables para el datapath
 wire[31:0]SrcA, SrcB,write_data,ImmExt,PC,PC_plus_four,PC_target,PC_Next
           ,Next_PC,ALU_Result,read_data,result,intruccion; 
@@ -60,18 +57,4 @@ Sumador Sum_PC_Four (PC, 32'd4, PC_plus_four);
 Sumador Sum_B (PC, ImmExt,PC_target);
 //Se coloca la memoria de instrucciones.  
 Intrucciones inst_R (PC,intruccion);
-
-//todas estas salidas definidas son para visualizar el estado de las señales
-assign ALU_Result_debug = ALU_Result;
-assign result_debug     = result;
-assign A3               = intruccion[11:7];
-assign operando_B       = SrcB; 
-assign ImmExt_debug     = ImmExt;
-assign PC_debug         = PC; 
-assign SrcA_debug       = SrcA;
-assign read_data_debug  = read_data; 
-assign write_data_debug = write_data; 
-assign A1 = intruccion[19:15]; 
-assign A2 = intruccion[24:20]; 
-assign PC_Next_debug = PC_Next; 
 endmodule

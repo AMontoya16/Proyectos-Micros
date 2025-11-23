@@ -24,11 +24,13 @@ module Intrucciones(
     input  [31:0] A,
     output [31:0] Read
 );
+//se tiene una entrada (de direccion) y una salida (de lecutra) de 32 bits 
 // se realiza una direccion y una lectura 
+
     reg [31:0] Demomory[0:127];//se define el espacio en memoria
     integer i;
 
-    initial begin
+    initial begin//se les da un valor en memoria a las direcciones que se van a leer
         for (i = 0; i < 128; i = i + 1)//se inicializan toda la memoria en 0
             Demomory[i] = 32'b0;
         //se entrega la direccion y la intruccion correspondiente
@@ -88,7 +90,8 @@ module Intrucciones(
         Demomory[90] = 32'h02010113;
         Demomory[91] = 32'h00008067;
     end
-
+    //como las direcciones se dan en # de bytes, se desplaza 2 a la derecha
+    // para pasarlo a # de palabras.
     assign Read = Demomory[A >> 2];
 
 endmodule

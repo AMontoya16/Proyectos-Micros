@@ -21,9 +21,11 @@
 
 
 module ALU(input[31:0]Operando_A,Operando_B,input[1:0]Control,output reg [31:0] salida);
-
+//se tiene 2 entradas de 32 bits 
+//una señal de control de 2 bits 
+//se busca que a la salida se tenga 4 distintas operaciones segun la señal de control 
     always @(*) begin //Siempre que una entrada cambie 
-        case (Control)
+        case (Control)//se referencia a la señal de control
             2'b00: salida = Operando_A  + Operando_B ;   // Suma
             2'b01: salida = Operando_A  >>> Operando_B ;  // Desplazamiento a la derecha
             2'b10: salida = Operando_A  & Operando_B ;   // AND

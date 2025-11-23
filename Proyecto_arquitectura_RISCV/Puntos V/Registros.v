@@ -29,7 +29,7 @@ integer i;//Se le entrega un valor inicial a los registros de 0
 initial begin
     for (i = 0; i < 32; i = i + 1)
         Register[i] = 32'b0;
-    Register[2] = 32'hFC; // se le da un valor al registro 2. 
+    Register[2] = 32'h100; // se le da un valor al registro 2. 
 end
 
 always @(posedge clk) begin 

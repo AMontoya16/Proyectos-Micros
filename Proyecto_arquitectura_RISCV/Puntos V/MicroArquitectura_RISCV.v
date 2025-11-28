@@ -59,7 +59,7 @@ Sumador Sum_PC_Four (PC, 32'd4, PC_plus_four);
 //Sumador que suma PC mas el imediato. 
 Sumador Sum_B (PC, ImmExt,PC_target);
 //Se coloca la memoria de instrucciones.  
-Intrucciones inst_R (PC,intruccion);
+Instrucciones inst_R (PC,intruccion);
 
 //todas estas salidas definidas son para visualizar el estado de las señales
 assign ALU_Result_debug = ALU_Result;

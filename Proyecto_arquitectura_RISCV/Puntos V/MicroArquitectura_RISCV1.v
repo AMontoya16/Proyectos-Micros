@@ -23,7 +23,7 @@
 module MicroArquitectura_RISCV1(input clk, input reset);
 //Se utilizan distintos cables para el datapath
 wire[31:0]SrcA, SrcB,write_data,ImmExt,PC,PC_plus_four,PC_target,PC_Next
-          ,Next_PC,ALU_Result,read_data,result,intruccion; 
+          ,Next_PC,ALU_Result,read_data,result,instruccion; 
           
 // se inicializan los cables de la unidad de control. 
 wire MemWrite,ALUSrc,RegWrite; 
@@ -31,11 +31,11 @@ wire [1:0] ALUControl,ImmSrc,ResultScr,PCSrc;
 
 // se define la unidad de control:
 // se entregan el opcode, el funct3 y funt7 y se generan todas las señales de control
-ControlUnit control (intruccion[6:0], intruccion[31:25],intruccion[14:12],
+ControlUnit control (instruccion[6:0], instruccion[31:25],instruccion[14:12],
                      ResultScr, MemWrite, ALUSrc, ImmSrc, RegWrite, 
                      ALUControl, PCSrc); 
 //Se colocan los registros
-Registros Register_File(clk, reset,RegWrite, intruccion[19:15],intruccion[24:20],intruccion[11:7],result,
+Registros Register_File(clk, reset,RegWrite, instruccion[19:15],instruccion[24:20],instruccion[11:7],result,
                         SrcA,write_data); 
 //Mux para seleccionar operando B de la ALU
 MULTIPLEX_2 ALU_Select(write_data,ImmExt,ALUSrc,SrcB); 
@@ -50,11 +50,11 @@ MULTIPLEX_4 PC_select(PC_plus_four,PC_target,{ALU_Result[31:1], 1'b0},32'd0,PCSr
 //Registro que guarda el estado actual de PC hasta el proximo ciclo de reloj 
 Registro_PC PC_register(clk,reset,PC_Next,PC); 
 //Unidad de extensión, recibe los imediatos de la intrucción y segun la operación los extiende 
-Extend_unit Extensor (intruccion[31:7],ImmSrc,ImmExt); 
+Extend_unit Extensor (instruccion[31:7],ImmSrc,ImmExt); 
 //Sumador que suma 4 al PC 
 Sumador Sum_PC_Four (PC, 32'd4, PC_plus_four); 
 //Sumador que suma PC mas el imediato. 
 Sumador Sum_B (PC, ImmExt,PC_target);
 //Se coloca la memoria de instrucciones.  
-Intrucciones inst_R (PC,intruccion);
+Instrucciones inst_R (PC,instruccion);
 endmodule

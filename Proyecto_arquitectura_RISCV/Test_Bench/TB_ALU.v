@@ -40,6 +40,6 @@ initial begin
     #10;
     A = 32'd10; 
     B = 32'd5;
-    control = 2'b11;//dezplazamiento arimetico
+    control = 2'b11;//XOR
 end 
 endmodule

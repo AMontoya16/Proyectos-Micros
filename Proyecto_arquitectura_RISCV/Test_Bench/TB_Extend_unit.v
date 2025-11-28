@@ -27,14 +27,18 @@ wire [31:0] salida;
 Extend_unit prueba(imm, immsrc, salida); 
 
 initial begin 
-imm = 25'd90;//se inicializan las variables 
-immsrc= 2'b00; 
+immsrc= 2'b00; //tipo I, resultado -32
+imm = 25'hFE0 << 13;//se inicializan las variables 
 #10;
-immsrc= 2'b01;
+immsrc= 2'b01;//Tipo S, resultado 28 
+imm = 25'b0000000000010001001011100; 
 #10; 
-immsrc= 2'b10; 
+immsrc= 2'b10; //Tipo U, resultado 49152
+imm = 25'b0000000000000000110001111; 
 #10; 
-immsrc= 2'b11; 
+immsrc= 2'b11; //Tipo J, resultado -192
+imm = 25'b1111010000011111111100001; 
+
 end 
 
 endmodule

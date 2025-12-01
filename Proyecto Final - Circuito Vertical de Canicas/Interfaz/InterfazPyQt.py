@@ -1,5 +1,7 @@
 # Tienen que instalar PyQt6 con: pip install PyQt6
+
 import os, sys
+import time # Necesario para la pausa en la comunicación
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
     QGridLayout, QLineEdit, QHBoxLayout, QFrame
@@ -7,6 +9,31 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt, QTimer
 
+import RPi.GPIO as GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(17, GPIO.IN)
+
+# Intentar importar smbus/smbus2. Si falla, el bus será None y la comunicación se simulará.
+try:
+    # Usamos smbus, que es el que tenías originalmente
+    from smbus import SMBus 
+except ImportError:
+    # Intento con smbus2 si smbus no está disponible
+    try:
+        from smbus2 import SMBus
+        print("AVISO: Usando smbus2 en lugar de smbus.")
+    except ImportError:
+        SMBus = None
+        print("AVISO: smbus/smbus2 no encontrado. La comunicación I2C será simulada.")
+
+
+# ---------------- Variables globales de envio ----------------
+
+# NOTA: Estas variables serán actualizadas por accion_destino,
+# pero se accederán dentro de la clase usando 'global'.
+Posicion_pasos = []
+Activacion_servo = 0
+permiso = 0 # Linea 332 masomenos
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
@@ -14,18 +41,33 @@ class VentanaPrincipal(QMainWindow):
         self.setWindowTitle("Proyecto MT-7003 - Visualizador")
         self.resize(1000, 700) # Aumentamos el tamaño para acomodar la nueva matriz
 
+        # ---------------- Comunicación I2C ----------------
+        self.I2C_ADDRESS = 0x27
+        self.bus = None
+        if SMBus: # Solo intenta inicializar si se importó la clase
+            try:
+                self.bus = SMBus(1)
+                print("INFO: Bus I2C 1 inicializado correctamente.")
+            except FileNotFoundError:
+                print("AVISO: No se puede abrir /dev/i2c-1. ¿Estás en una Raspberry Pi con I2C habilitado?")
+            except Exception as e:
+                print(f"ERROR: Fallo al inicializar I2C: {e}")
+        else:
+            print("AVISO: La comunicación I2C será simulada (SMBus no disponible).")
+        # ---------------- FIN Comunicación I2C ----------------
+        
         # Estado
-        self.modo = None                    # "trayectoria" | "tiempo_real"
-        self.trayectoria = []               # lista de selección (ALMACENA VALORES NUMÉRICOS/BYTES)
-        self.s_seleccionada = None          # columna del S elegido (0..2)
+        self.modo = None                     # "trayectoria" | "tiempo_real"
+        self.trayectoria = []                # lista de selección (ALMACENA VALORES NUMÉRICOS/BYTES)
+        self.s_seleccionada = None           # columna del S elegido (0..2)
         
         # --- ESTADOS PARA TIEMPO REAL ---
         self.esperando_senal = False        
         self.bloqueado_esperando_paso = False # tiempo real: bloqueo después de un paso (esperando *siguiente* señal)
-        self.last_pressed_coords = None     # (fila, col) del último botón presionado, o "S", o "Destino"
+        self.last_pressed_coords = None      # (fila, col) del último botón presionado, o "S", o "Destino"
         # ----------------------------------------
         
-        self.num_canicas = None             # Estado para el número de canicas
+        self.num_canicas = None              # Estado para el número de canicas
 
         # Widget central y layout principal
         central_widget = QWidget()
@@ -52,9 +94,9 @@ class VentanaPrincipal(QMainWindow):
             "<b>Proyecto MT-7003</b><br>"
             "<b>Microcontroladores y Microprocesadores</b><br><br>"
             "Cristhian Araya Chaves - 2022067611<br>"
-            "Jason Brenes Vázquez<br>"
+            "Jason Brenes Vázquez - 2023057374<br>"
             "Greivin Esquivel Salazar<br>"
-            "Andrés Montoya Viales<br><br>"
+            "Andrés Montoya Viales - 2023063390 <br><br>"
             "II Semestre 2025"
         )
         self.presentacion_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -249,6 +291,91 @@ class VentanaPrincipal(QMainWindow):
         self.Boton_TR.clicked.connect(lambda: self.cambiar_modo("tiempo_real"))
         self.boton_atras.clicked.connect(self.mostrar_pantalla_inicial)
         self.boton_aplicar_data.clicked.connect(self.simular_actualizacion_externa)
+
+    # ---------------- Función para enviar/recibir datos I2C ----------------
+    def enviar_trayectoria_i2c(self):
+        """
+        Envía la trayectoria completa (Activacion_servo + Posicion_pasos) al STM32
+        en modo 'trayectoria' (maestro push).
+        """
+        global Posicion_pasos
+        global Activacion_servo
+        
+        # Bloquea temporalmente el bucle si no hay bus I2C real
+        if self.bus is None:
+            print("⚠️ Ejecución I2C abortada: Bus no inicializado. Comunicación SIMULADA.")
+            return
+
+        # 1. Preparar la trayectoria a enviar
+        # La trayectoria son los nodos (Posicion_pasos) precedidos por el servo a activar (Activacion_servo)
+        datos_a_enviar = Posicion_pasos 
+        
+        print(f"INICIANDO ENVÍO DE TRAYECTORIA I2C: {datos_a_enviar}")
+
+        try:
+            global permiso
+            
+            # Iterar sobre la trayectoria completa (incluyendo Activacion_servo)
+            for dato in datos_a_enviar:
+                
+                byte_a_enviar = dato 
+                
+                # Enviar valor al STM32
+                self.bus.write_byte(self.I2C_ADDRESS, byte_a_enviar)
+                t0 = time.time()
+                print(f"Enviado al STM32: {dato} (Byte: {byte_a_enviar})")
+
+                # Intentar leer un byte de respuesta (ej. confirmación)
+                
+                while permiso != 1:
+                       # print ("Procesando")
+                        permiso = GPIO.input(17)
+                
+                try:
+                    respuesta = self.bus.read_byte(self.I2C_ADDRESS)
+                    t1 = time.time()
+                    tiempo_res = (t1-t0)
+
+                    if respuesta == 1:
+                        print("✅ STM32 confirmó recepción del dato. Mueve a izquierda")
+                        print(tiempo_res)
+                    elif respuesta == 0:
+                        print("STM32 confirmó recepción del dato. Mueve a derecha")
+                        print(tiempo_res)
+                    elif respuesta == 2:
+                        print("STM32 confirmó recepción del dato. Mueve a abajo.")
+                        print(tiempo_res)
+                    else:
+                        print(f"⚠️ Respuesta desconocida: {respuesta}")
+
+                
+
+                    permiso = GPIO.input(17)
+                except OSError as e:
+                      print(f"⚠️ Error al leer respuesta: {e}")
+                
+               
+                            
+                
+                # Pausa para dar tiempo al bus I2C y al microcontrolador
+                time.sleep(0.5)
+
+        except OSError as e:
+            print(f"⚠️ Error fatal de comunicación I2C: {e}")
+        
+        print("\n🛑 Ejecución de Trayectoria I2C finalizada.")
+
+    def closeEvent(self, event):
+        """Asegura que el bus I2C se cierre al terminar la aplicación."""
+        if self.bus:
+            # Reintentar cerrar el bus si está abierto
+            try:
+                self.bus.close()
+                print("INFO: Bus I2C cerrado.")
+            except Exception as e:
+                print(f"AVISO: Error al cerrar el bus I2C: {e}")
+        super().closeEvent(event)
+
 
     # ---------------- Mapeo de Valores ----------------
     def _mapear_a_byte(self, texto):
@@ -615,73 +742,93 @@ class VentanaPrincipal(QMainWindow):
                 b.setEnabled(False)
                 b.setStyleSheet(self.difuminado())
 
+    def aplicar_bloqueo_total(self, bloquear):
+        """Bloquea/Desbloquea todos los botones (S1-S3, 1-9, Destino) y aplica estilo difuminado."""
+        for f in range(len(self.botones)):
+            for c in range(len(self.botones[f])):
+                b = self.botones[f][c]
+                b.setEnabled(not bloquear)
+                if bloquear:
+                    b.setStyleSheet(self.difuminado())
+                else:
+                    b.setStyleSheet(self.seleccionable())
+        
+        self.boton_destino.setEnabled(not bloquear)
+        if bloquear:
+            self.boton_destino.setStyleSheet(self.difuminado())
+        else:
+            self.boton_destino.setStyleSheet(self.seleccionable())
+
+
     def registrar_seleccion(self, dato_byte):
         """Guarda el valor numérico (byte) en la lista de trayectoria."""
         self.trayectoria.append(dato_byte)
+        
 
     # ---------------- Destino y Reiniciar ----------------
+
     def accion_destino(self):
         """
         Finaliza la selección de trayectoria o registra la acción en tiempo real.
         """
-        dato_byte = self._mapear_a_byte("Destino") # 99
-        self.registrar_seleccion(dato_byte)
+        # 1. Registrar el byte 99 ("Destino") en la trayectoria
+        self.registrar_seleccion(99)
         
-        # 1. BLOQUEAR TODA LA MATRIZ DE SENSORES/NÚMEROS
+        # 2. Bloquear toda la matriz
         self.aplicar_bloqueo_total(True)
-        
-        # 2. BLOQUEAR EL BOTÓN DE DESTINO
-        self.boton_destino.setEnabled(False) 
-        self.boton_destino.setStyleSheet(self.difuminado())
-        
+        self.last_pressed_coords = "Destino"
+
         if self.modo == "trayectoria":
+            global Posicion_pasos
+            global Activacion_servo
+            
+            # Asignar los valores a las variables globales para la comunicación I2C
+            # El primer elemento es el byte del sensor S (-1, -2, o -3)
+            Activacion_servo = self.trayectoria [0] 
+            # El resto son los pasos (nodos) incluyendo el Destino (99)
+            Posicion_pasos = self.trayectoria[1:]
+            
             # TRAYECTORIA COMPLETA REGISTRADA
-            print(f"INFO: Trayectoria completa registrada: {self.trayectoria}. Esperando ejecución simulada.")
+            print(f"INFO: Trayectoria completa registrada: {Posicion_pasos}.")
+            print(f"INFO: Servo a activar: {Activacion_servo}.")
+            
+            # 3. LLAMAR A LA FUNCIÓN DE COMUNICACIÓN AQUÍ
+            self.enviar_trayectoria_i2c() # <-- LLAMADA DE ACCIÓN
             
         else: # Modo Tiempo Real
-            # COMANDO DESTINO ÚNICO REGISTRADO
-            print(f"INFO: Tiempo real - comando Destino (99) registrado. Matriz bloqueada hasta Reiniciar.")
-            self.last_pressed_coords = "Destino"
-            self.bloqueado_esperando_paso = False 
-
+            # Lógica de tiempo real: el paso 'Destino' fue enviado, ahora espera la señal externa
+            self.bloqueado_esperando_paso = True
+            print("INFO: Modo Tiempo Real - Comando DESTINO registrado. Matriz bloqueada, esperando señal externa.")
+            
     def accion_reiniciar(self):
-        """Reinicia el estado lógico y visual a la configuración inicial de cada modo."""
-
+        """Reinicia el estado lógico y la matriz de botones."""
         self.reset_estado_logico()
-        
-        self.actualizar_estado_indicador(0) # Apagar todos los indicadores
-        self.actualizar_estado_canicas(None) # Reiniciar canicas a 'Sin dato'
-        
-        # Volver al estado inicial: S1-S3 y Destino activos, números 1-9 inactivos
         self.configurar_estado_inicial_matriz()
-
-    def aplicar_bloqueo_total(self, bloquear=True):
-        """Bloquea o desbloquea todos los botones de la matriz de sensores/números (S1-S3 y 1-9)."""
-        # Botones S1-S3 y 1-9
-        for fila in self.botones:
-            for b in fila:
-                b.setEnabled(not bloquear)
-                b.setStyleSheet(self.difuminado() if bloquear else self.seleccionable())
-        
-        # El botón Destino (99) NO está incluido en este bloqueo total.
+        self.actualizar_estado_indicador(0)
+        self.actualizar_estado_canicas(None)
+        print("INFO: Sistema reiniciado. Se espera selección de S1, S2, o S3.")
 
     def reset_estado_logico(self):
-        """Reinicia solo las variables de estado lógico."""
-        self.trayectoria.clear() # Lista vacía de bytes
+        """Reinicia todas las variables de estado lógico a su valor por defecto."""
+        global Posicion_pasos
+        global Activacion_servo
+        
+        Posicion_pasos = []
+        Activacion_servo = 0
+        self.trayectoria = []
         self.s_seleccionada = None
-        self.last_pressed_coords = None 
+        self.num_canicas = None
         self.esperando_senal = False
         self.bloqueado_esperando_paso = False
+        self.last_pressed_coords = None
 
-# Esto ejecuta la aplicación
+
+# ---------------- Ejecución ----------------
+
 if __name__ == '__main__':
- 
     app = QApplication(sys.argv)
-    
     ventana = VentanaPrincipal()
     ventana.show()
     sys.exit(app.exec())
-
-
 
 

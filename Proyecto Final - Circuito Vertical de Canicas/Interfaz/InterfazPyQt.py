@@ -34,8 +34,24 @@ except ImportError:
 Posicion_pasos = []
 Activacion_servo = 0
 permiso = 0 # Linea 332 masomenos
+iniciador = 2 # Se encarga de establecer como primer valor de la lista en 2 para evitar errores en la comunicacion
 
 class VentanaPrincipal(QMainWindow):
+    def stm_canica_callback (self, channel):
+            try:
+                    conteo = self.bus.read_byte (self.I2C_ADDRESS)
+                    if conteo is not None: 
+                            self.num_canicas = int (conteo)
+                            print(f"🔔 INTERRUPCIÓN DETECTADA: Nuevo valor de canicas leído: {self.num_canicas}")
+                
+                    else:
+                        self.num_canicas = None
+                        print("⚠️ Lectura de canicas fallida o nula.")
+
+            except OSError as e:
+                self.num_canicas = None
+                print(f"❌ Error I2C en la interrupción de canicas: {e}. Valor establecido a None.")
+    
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Proyecto MT-7003 - Visualizador")
@@ -166,12 +182,14 @@ class VentanaPrincipal(QMainWindow):
 
 
         # Cuadro de Número de Canicas
+        texto_inicial = f"Número de canicas: {self.num_canicas}" #Esta linea indica el texto al usuario
+        
         self.canicas_container = QFrame()
         self.canicas_container.setFrameShape(QFrame.Shape.Box)
         self.canicas_container.setFrameShadow(QFrame.Shadow.Raised)
         self.canicas_container.setStyleSheet("background-color: #FFFFFF; border: 2px solid #003865; border-radius: 10px; padding: 5px;")
         canicas_layout = QHBoxLayout(self.canicas_container)
-        self.label_canicas = QLabel("Número de canicas: Sin dato")
+        self.label_canicas = QLabel(texto_inicial, self)
         self.label_canicas.setStyleSheet("font-size: 20px; font-weight: bold; color: #303030;")
         canicas_layout.addWidget(self.label_canicas)
         self.canicas_container.hide()
@@ -300,6 +318,7 @@ class VentanaPrincipal(QMainWindow):
         """
         global Posicion_pasos
         global Activacion_servo
+        global iniciador
         
         # Bloquea temporalmente el bucle si no hay bus I2C real
         if self.bus is None:
@@ -309,6 +328,8 @@ class VentanaPrincipal(QMainWindow):
         # 1. Preparar la trayectoria a enviar
         # La trayectoria son los nodos (Posicion_pasos) precedidos por el servo a activar (Activacion_servo)
         datos_a_enviar = Posicion_pasos 
+        
+        datos_a_enviar.insert(0,iniciador)
         
         print(f"INICIANDO ENVÍO DE TRAYECTORIA I2C: {datos_a_enviar}")
 
@@ -327,9 +348,9 @@ class VentanaPrincipal(QMainWindow):
 
                 # Intentar leer un byte de respuesta (ej. confirmación)
                 
-                while permiso != 1:
+                while GPIO.input (17) != 1:
                        # print ("Procesando")
-                        permiso = GPIO.input(17)
+                        time.sleep (0.005)
                 
                 try:
                     respuesta = self.bus.read_byte(self.I2C_ADDRESS)
@@ -338,19 +359,26 @@ class VentanaPrincipal(QMainWindow):
 
                     if respuesta == 1:
                         print("✅ STM32 confirmó recepción del dato. Mueve a izquierda")
+                        print (respuesta)
                         print(tiempo_res)
                     elif respuesta == 0:
                         print("STM32 confirmó recepción del dato. Mueve a derecha")
                         print(tiempo_res)
+                        print (respuesta)
                     elif respuesta == 2:
                         print("STM32 confirmó recepción del dato. Mueve a abajo.")
                         print(tiempo_res)
+                        print (respuesta)
+                    elif respuesta == 3:
+                        print ("STM32 confirmó recepción del dato. Mueve a destino.")
+                        print (tiempo_res)
+                        print (respuesta)
                     else:
                         print(f"⚠️ Respuesta desconocida: {respuesta}")
 
                 
 
-                    permiso = GPIO.input(17)
+                    
                 except OSError as e:
                       print(f"⚠️ Error al leer respuesta: {e}")
                 
@@ -449,7 +477,7 @@ class VentanaPrincipal(QMainWindow):
             }"""
 
     # ---------------- Lógica de Actualización Externa (API) (Sin cambios) ----------------
-    def actualizar_estado_canicas(self, entero=None):
+    def actualizar_estado_canicas(self, entero):
         """
         Método para ser llamado por la lógica externa (microcontrolador)
         para actualizar el contador de canicas.

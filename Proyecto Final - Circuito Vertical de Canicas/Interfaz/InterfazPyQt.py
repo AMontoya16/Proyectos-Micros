@@ -308,7 +308,7 @@ class VentanaPrincipal(QMainWindow):
         self.Boton_inicio.clicked.connect(lambda: self.cambiar_modo("trayectoria"))
         self.Boton_TR.clicked.connect(lambda: self.cambiar_modo("tiempo_real"))
         self.boton_atras.clicked.connect(self.mostrar_pantalla_inicial)
-        self.boton_aplicar_data.clicked.connect(self.simular_actualizacion_externa)
+        #self.boton_aplicar_data.clicked.connect(self.simular_actualizacion_externa)
 
     # ---------------- Función para enviar/recibir datos I2C ----------------
     def enviar_trayectoria_i2c(self):
@@ -327,83 +327,124 @@ class VentanaPrincipal(QMainWindow):
 
         # 1. Preparar la trayectoria a enviar
         # La trayectoria son los nodos (Posicion_pasos) precedidos por el servo a activar (Activacion_servo)
-        datos_a_enviar = Posicion_pasos 
+        datos_a_enviar = self.trayectoria
         
-        datos_a_enviar.insert(0,iniciador)
-        
-        print(f"INICIANDO ENVÍO DE TRAYECTORIA I2C: {datos_a_enviar}")
+        if self.modo == "trayectoria":
+                datos_a_enviar.insert(0,iniciador)
+                
+                print(f"INICIANDO ENVÍO DE TRAYECTORIA I2C: {datos_a_enviar}")
 
-        try:
-            global permiso
+                try:
+                    global permiso
+                    
+                    # Iterar sobre la trayectoria completa (incluyendo Activacion_servo)
+                    for dato in datos_a_enviar:
+                        
+                        byte_a_enviar = dato 
+                        
+                        # Enviar valor al STM32
+                        self.bus.write_byte(self.I2C_ADDRESS, byte_a_enviar)
+                        t0 = time.time()
+                        print(f"Enviado al STM32: {dato} (Byte: {byte_a_enviar})")
+
+                        # Intentar leer un byte de respuesta (ej. confirmación)
+                        
+                        while GPIO.input (17) != 1:
+                               # print ("Procesando")
+                                time.sleep (0.005)
+                        
+                        try:
+                            respuesta = self.bus.read_byte(self.I2C_ADDRESS)
+                            t1 = time.time()
+                            tiempo_res = (t1-t0)
+
+                            if respuesta == 1:
+                                print("✅ STM32 confirmó recepción del dato. Mueve a izquierda")
+                                print (respuesta)
+                                print(tiempo_res)
+                            elif respuesta == 0:
+                                print("STM32 confirmó recepción del dato. Mueve a derecha")
+                                print(tiempo_res)
+                                print (respuesta)
+                            elif respuesta == 2:
+                                print("STM32 confirmó recepción del dato. Mueve a abajo.")
+                                print(tiempo_res)
+                                print (respuesta)
+                            elif respuesta == 3:
+                                print ("STM32 confirmó recepción del dato. Mueve a destino.")
+                                print (tiempo_res)
+                                print (respuesta)
+                            else:
+                                print(f"⚠️ Respuesta desconocida: {respuesta}")
+
+
+                        except OSError as e:
+                              print(f"⚠️ Error al leer respuesta: {e}")
+                
+                        # Pausa para dar tiempo al bus I2C y al microcontrolador
+                        time.sleep(0.5)
+
+                except OSError as e:
+                    print(f"⚠️ Error fatal de comunicación I2C: {e}")
+                
+                print("\n🛑 Ejecución de Trayectoria I2C finalizada.")
+                
+    def enviar_trayectoria_i2c_TR(self, texto):
+    
+            # 1. Chequeo de Bus
+            if self.bus is None:
+                print("⚠️ Ejecución I2C abortada: Bus no inicializado. Comunicación SIMULADA.")
+                return # Salida 1: Si no hay bus, salimos.
+
+            # Mapear el texto a byte
+            datos_a_enviar = self._mapear_a_byte(texto)
+            print (datos_a_enviar)
             
-            # Iterar sobre la trayectoria completa (incluyendo Activacion_servo)
-            for dato in datos_a_enviar:
-                
-                byte_a_enviar = dato 
-                
-                # Enviar valor al STM32
-                self.bus.write_byte(self.I2C_ADDRESS, byte_a_enviar)
-                t0 = time.time()
-                print(f"Enviado al STM32: {dato} (Byte: {byte_a_enviar})")
+            # *Nota: Si quieres que S1, S2, S3 mapeen a algo diferente a 0, cambia esto:*
+            if datos_a_enviar < 0:
+                 datos_a_enviar = 2 #abs(datos_a_enviar) # Ejemplo: -1 -> 1
+            
+            print(f"INICIANDO ENVÍO DE PASO I2C: {datos_a_enviar}")
 
-                # Intentar leer un byte de respuesta (ej. confirmación)
+            try:
+                # A. ENVÍO Y POLLING
+                self.bus.write_byte(self.I2C_ADDRESS, datos_a_enviar)
+                t0 = time.time()
+                print(f"Enviado al STM32: {datos_a_enviar}")
+
+                # Polling/Espera de la bandera GPIO 17 (HANDSHAKING)
+                while GPIO.input(17) != 1:
+                    time.sleep(0.005)
+                    
+                #respuesta = None
                 
-                while GPIO.input (17) != 1:
-                       # print ("Procesando")
-                        time.sleep (0.005)
-                
+                # B. LECTURA DE RESPUESTA
                 try:
                     respuesta = self.bus.read_byte(self.I2C_ADDRESS)
                     t1 = time.time()
-                    tiempo_res = (t1-t0)
-
-                    if respuesta == 1:
-                        print("✅ STM32 confirmó recepción del dato. Mueve a izquierda")
-                        print (respuesta)
-                        print(tiempo_res)
-                    elif respuesta == 0:
-                        print("STM32 confirmó recepción del dato. Mueve a derecha")
-                        print(tiempo_res)
-                        print (respuesta)
-                    elif respuesta == 2:
-                        print("STM32 confirmó recepción del dato. Mueve a abajo.")
-                        print(tiempo_res)
-                        print (respuesta)
-                    elif respuesta == 3:
-                        print ("STM32 confirmó recepción del dato. Mueve a destino.")
-                        print (tiempo_res)
-                        print (respuesta)
-                    else:
-                        print(f"⚠️ Respuesta desconocida: {respuesta}")
-
-                
-
+                    tiempo_res = (t1 - t0)
                     
+                    # 2. DECIDIR EL MENSAJE Y EL LOG
+                    log_msgs = {0: "Mueve a derecha", 1: "Mueve a izquierda", 2: "Mueve a abajo", 3: "Mueve a destino"}
+                    msg = log_msgs.get(respuesta, f"Respuesta desconocida: {respuesta}")
+                    print(f"✅ STM32 confirmó. {msg}. Tiempo: {tiempo_res:.4f}s. Respuesta: {respuesta}")
+
                 except OSError as e:
-                      print(f"⚠️ Error al leer respuesta: {e}")
+                    # Si falla la lectura, imprimimos el error, pero continuamos para desbloquear,
+                    # ASUMIENDO que el STM32 sí terminó el paso.
+                    print(f"⚠️ Error al leer respuesta: {e}. Se asume que el paso terminó.")
+                    
                 
-               
-                            
+                # --- CÓDIGO DE DESBLOQUEO Y COMPROBACIÓN (Movido al final del bloque try) ---
+                self.simular_actualizacion_externa() # ⬅️ Ejecutamos la función
+                print(self.bloqueado_esperando_paso) # Imprimimos el estado para debugging
+
                 
-                # Pausa para dar tiempo al bus I2C y al microcontrolador
-                time.sleep(0.5)
-
-        except OSError as e:
-            print(f"⚠️ Error fatal de comunicación I2C: {e}")
-        
-        print("\n🛑 Ejecución de Trayectoria I2C finalizada.")
-
-    def closeEvent(self, event):
-        """Asegura que el bus I2C se cierre al terminar la aplicación."""
-        if self.bus:
-            # Reintentar cerrar el bus si está abierto
-            try:
-                self.bus.close()
-                print("INFO: Bus I2C cerrado.")
-            except Exception as e:
-                print(f"AVISO: Error al cerrar el bus I2C: {e}")
-        super().closeEvent(event)
-
+            except OSError as e:
+                # Esto captura errores de bus.write_byte() o la lectura principal
+                print(f"⚠️ Error fatal de comunicación I2C: {e}")
+                    
+            print("\n🛑 Ejecución de Trayectoria I2C finalizada.")
 
     # ---------------- Mapeo de Valores ----------------
     def _mapear_a_byte(self, texto):
@@ -509,8 +550,8 @@ class VentanaPrincipal(QMainWindow):
         if valor in self.indicador_labels:
             self.indicador_labels[valor].setStyleSheet(self.estilo_indicador_verde())
             print(f"DEBUG: Indicador activado para el valor: {valor}")
-        else:
-            print(f"DEBUG: Valor de señal '{valor}' fuera de rango (-3 a 9, o 99).")
+       # else:
+         #   print(f"DEBUG: Valor de señal '{valor}' fuera de rango (-3 a 9, o 99).")
 
     def simular_actualizacion_externa(self):
         """
@@ -571,6 +612,8 @@ class VentanaPrincipal(QMainWindow):
                 # Caso Destino: Si el último paso fue "Destino", no hay más pasos, se mantiene bloqueado.
                 elif self.last_pressed_coords == "Destino":
                     print("INFO: Matriz bloqueada. El último paso fue Destino. Presione Reiniciar.")
+            QApplication.processEvents()
+            print("INFO: GUI forzada a redibujar después del desbloqueo.")
 
 
     # ---------------- Pantallas (Sin cambios) ----------------
@@ -672,7 +715,8 @@ class VentanaPrincipal(QMainWindow):
             # Nota: En TR, solo guardamos el último byte para saber qué desbloquear después, no la lista completa
             if dato_byte != 0:
                 self.trayectoria = [dato_byte]
-            print(f"INFO: Modo Tiempo Real - Comando de paso registrado: {dato_byte}")
+            self.enviar_trayectoria_i2c_TR(str(self.trayectoria))
+            #print(f"INFO: Modo Tiempo Real - Comando de paso registrado: {dato_byte}")
             
             # 2. Lógica de estado y bloqueo
             if fila == 0: # S1..S3 selection
@@ -687,6 +731,7 @@ class VentanaPrincipal(QMainWindow):
             # 3. Aplicar bloqueo total (S/Números), esperar señal externa
             self.aplicar_bloqueo_total(True)
             self.bloqueado_esperando_paso = True
+            self.enviar_trayectoria_i2c_TR(texto)
             
         else: # Modo Trayectoria (Lógica de adyacentes y bloqueo por fila)
 
@@ -825,6 +870,8 @@ class VentanaPrincipal(QMainWindow):
             
         else: # Modo Tiempo Real
             # Lógica de tiempo real: el paso 'Destino' fue enviado, ahora espera la señal externa
+            byte_a_enviar = self._mapear_a_byte(99)
+            self.bus.write_byte(self.I2C_ADDRESS, byte_a_enviar)
             self.bloqueado_esperando_paso = True
             print("INFO: Modo Tiempo Real - Comando DESTINO registrado. Matriz bloqueada, esperando señal externa.")
             
@@ -858,5 +905,4 @@ if __name__ == '__main__':
     ventana = VentanaPrincipal()
     ventana.show()
     sys.exit(app.exec())
-
 

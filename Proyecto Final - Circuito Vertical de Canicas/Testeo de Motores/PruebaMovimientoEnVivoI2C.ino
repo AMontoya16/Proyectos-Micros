@@ -2,7 +2,7 @@
 #include <AccelStepper.h>
 #include <Servo.h>
 
-// Codigo version funcional
+// Codigo version funcional v10000
 
 // =======================================================
 // I2C
@@ -12,7 +12,7 @@
 
 volatile int8_t comando_recibido = 0;
 volatile bool nuevo_comando = false;
-uint8_t respuestaI2C = 4;
+int8_t respuestaI2C = 4;
 
 // =======================================================
 // SERVOS NO BLOQUEANTES
@@ -124,7 +124,8 @@ void receiveEvent(int howMany)
 // =======================================================
 void requestEvent()
 {
-    Wire.write(respuestaI2C);
+    Wire.write((int8_t)respuestaI2C);
+
 }
 
 // =======================================================
@@ -266,6 +267,9 @@ void loop()
     {
         int objetivo = -cmd;
 
+        // aun no hay dato válido
+        respuestaI2C = cmd;
+
         estado_actual = objetivo;
         moverSegunCambio(estado_pasado, estado_actual);
         estado_pasado = estado_actual;
@@ -273,9 +277,6 @@ void loop()
         // maestro debe confirmar
         esperandoConfirmacion = true;
         objetivoConfirmacion = objetivo;
-
-        // aun no hay dato válido
-        respuestaI2C = 4;
 
         // maestro puede leer YA
         digitalWrite(LED_READY, HIGH);
@@ -287,14 +288,16 @@ void loop()
     // ===================================================
     if (cmd == DESTINO)
     {
-        respuestaI2C = 3;
+        respuestaI2C = DESTINO;
         moverDrop();
+
+        digitalWrite(LED_READY, HIGH);
+
         regreso(estado_pasado);
 
         estado_pasado = 2;
         estado_actual = 2;
 
-        digitalWrite(LED_READY, HIGH);
         return;
     }
 
@@ -303,10 +306,9 @@ void loop()
     // ===================================================
     estado_actual = cmd;
 
-    if (estado_actual == estado_pasado + 1) respuestaI2C = 0;
-    else if (estado_actual == estado_pasado - 1) respuestaI2C = 1;
-    else if (estado_actual == estado_pasado + 3) respuestaI2C = 2;
-    else respuestaI2C = 4;
+    // Ahora se envía el valor real del estado actual
+    respuestaI2C = estado_actual;
+
 
     moverSegunCambio(estado_pasado, estado_actual);
     estado_pasado = estado_actual;

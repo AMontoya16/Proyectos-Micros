@@ -1,8 +1,8 @@
-#include <Wire.h>
+#include <Wire.h> 
 #include <AccelStepper.h>
 #include <Servo.h>
 
-// Codigo version funcional v10000
+// Codigo version funcional v10000 EDITADO
 
 // =======================================================
 // I2C
@@ -13,6 +13,16 @@
 volatile int8_t comando_recibido = 0;
 volatile bool nuevo_comando = false;
 int8_t respuestaI2C = 4;
+
+// =======================================================
+// PARADA DE EMERGENCIA (NUEVO)
+// =======================================================
+volatile bool paradaEmergencia = false;
+
+void emergencyStopISR()
+{
+    paradaEmergencia = true;
+}
 
 // =======================================================
 // SERVOS NO BLOQUEANTES
@@ -50,7 +60,6 @@ void actualizarServo()
 {
     if (!servoPendiente) return;
 
-    // Etapa 1: activar
     if (servoEtapa1 && millis() - servoTimer >= 5)
     {
         if (servoObjetivo == 1) servoMotor1.write(ANGULO_ACTIVO);
@@ -63,7 +72,6 @@ void actualizarServo()
         return;
     }
 
-    // Etapa 2: reposo
     if (servoEtapa2 && millis() - servoTimer >= 300)
     {
         if (servoObjetivo == 1) servoMotor1.write(ANGULO_REPOSO);
@@ -82,7 +90,7 @@ void actualizarServo()
 #define DIR_H  PA1
 #define STEP_V PA2
 #define DIR_V  PA3
-#define LED_READY PB10
+#define FLAG_READY PB10
 
 AccelStepper motorH(AccelStepper::DRIVER, STEP_H, DIR_H);
 AccelStepper motorV(AccelStepper::DRIVER, STEP_V, DIR_V);
@@ -125,11 +133,10 @@ void receiveEvent(int howMany)
 void requestEvent()
 {
     Wire.write((int8_t)respuestaI2C);
-
 }
 
 // =======================================================
-// MOVIMIENTO SIMPLE
+// MOVIMIENTOS
 // =======================================================
 void moverSegunCambio(int pasado, int actual)
 {
@@ -165,14 +172,14 @@ void regreso(int pos_actual)
         motorH.move(STEPS_PER_SECTOR);
         while (motorH.distanceToGo()) motorH.run();
 
-        for (int i=0;i<2;i++){
+        for (int i=0; i<2; i++){
             motorV.move(-STEPS_PER_SECTOR);
             while (motorV.distanceToGo()) motorV.run();
         }
     }
     else if (pos_actual == 8)
     {
-        for (int i=0;i<2;i++){
+        for (int i=0; i<2; i++){
             motorV.move(-STEPS_PER_SECTOR);
             while (motorV.distanceToGo()) motorV.run();
         }
@@ -182,7 +189,7 @@ void regreso(int pos_actual)
         motorH.move(-STEPS_PER_SECTOR);
         while (motorH.distanceToGo()) motorH.run();
 
-        for (int i=0;i<2;i++){
+        for (int i=0; i<2; i++){
             motorV.move(-STEPS_PER_SECTOR);
             while (motorV.distanceToGo()) motorV.run();
         }
@@ -197,8 +204,8 @@ void regreso(int pos_actual)
 // =======================================================
 void setup()
 {
-    pinMode(LED_READY, OUTPUT);
-    digitalWrite(LED_READY, HIGH);
+    pinMode(FLAG_READY, OUTPUT);
+    digitalWrite(FLAG_READY, HIGH);
 
     servoMotor1.attach(SERVO1_PIN);
     servoMotor2.attach(SERVO2_PIN);
@@ -213,6 +220,10 @@ void setup()
 
     motorV.setMaxSpeed(700);
     motorV.setAcceleration(1100);
+
+    // INTERRUPCIÓN DE EMERGENCIA (PB0)
+    pinMode(PB0, INPUT);   // pull-up externo
+    attachInterrupt(digitalPinToInterrupt(PB0), emergencyStopISR, RISING);
 
     Wire.setSDA(PB7);
     Wire.setSCL(PB6);
@@ -230,6 +241,20 @@ void setup()
 // =======================================================
 void loop()
 {
+    // ⭐⭐⭐ PARADA DE EMERGENCIA ⭐⭐⭐
+    if (paradaEmergencia)
+    {
+        motorH.stop();
+        motorV.stop();
+
+        motorH.move(0);
+        motorV.move(0);
+
+        digitalWrite(FLAG_READY, HIGH);
+
+        return;
+    }
+
     actualizarServo();
 
     if (!nuevo_comando) return;
@@ -237,61 +262,46 @@ void loop()
     int8_t cmd = comando_recibido;
     nuevo_comando = false;
 
-    // bloquear maestro
-    digitalWrite(LED_READY, LOW);
+    digitalWrite(FLAG_READY, LOW);
 
-    // ===================================================
-    // CONFIRMACIÓN
-    // ===================================================
+    // CONFIRMACIONES
     if (esperandoConfirmacion)
     {
         if (cmd == objetivoConfirmacion)
         {
             respuestaI2C = objetivoConfirmacion;
-
-            // permitir lectura INMEDIATA
-            digitalWrite(LED_READY, HIGH);
-
-            // mover servo DESPUÉS
+            digitalWrite(FLAG_READY, HIGH);
             iniciarServo(objetivoConfirmacion);
-
             esperandoConfirmacion = false;
         }
         return;
     }
 
-    // ===================================================
     // NEGATIVOS
-    // ===================================================
     if (cmd == -1 || cmd == -2 || cmd == -3)
     {
         int objetivo = -cmd;
 
-        // aun no hay dato válido
         respuestaI2C = cmd;
 
         estado_actual = objetivo;
         moverSegunCambio(estado_pasado, estado_actual);
         estado_pasado = estado_actual;
 
-        // maestro debe confirmar
         esperandoConfirmacion = true;
         objetivoConfirmacion = objetivo;
 
-        // maestro puede leer YA
-        digitalWrite(LED_READY, HIGH);
+        digitalWrite(FLAG_READY, HIGH);
         return;
     }
 
-    // ===================================================
     // DESTINO
-    // ===================================================
     if (cmd == DESTINO)
     {
         respuestaI2C = DESTINO;
         moverDrop();
 
-        digitalWrite(LED_READY, HIGH);
+        digitalWrite(FLAG_READY, HIGH);
 
         regreso(estado_pasado);
 
@@ -301,18 +311,20 @@ void loop()
         return;
     }
 
-    // ===================================================
-    // MOVIMIENTOS NORMALES
-    // ===================================================
+    // MOVIMIENTO NORMAL
+    if (cmd == 0)
+    {
+        respuestaI2C = 0;
+        digitalWrite(FLAG_READY, HIGH);
+        return;
+    }
+
     estado_actual = cmd;
-
-    // Ahora se envía el valor real del estado actual
     respuestaI2C = estado_actual;
-
 
     moverSegunCambio(estado_pasado, estado_actual);
     estado_pasado = estado_actual;
 
-    digitalWrite(LED_READY, HIGH);
+    digitalWrite(FLAG_READY, HIGH);
 }
 

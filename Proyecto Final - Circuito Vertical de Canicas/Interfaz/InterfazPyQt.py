@@ -4,14 +4,16 @@ import os, sys
 import time # Necesario para la pausa en la comunicación
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QGridLayout, QLineEdit, QHBoxLayout, QFrame
+    QGridLayout, QLineEdit, QHBoxLayout, QFrame, QDialog, QMessageBox
 )
 from PyQt6.QtGui import QPixmap, QIcon
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject
 
-import RPi.GPIO as GPIO
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(17, GPIO.IN)
+#import RPi.GPIO as GPIO
+#GPIO.setmode(GPIO.BCM)
+#GPIO.setup(17, GPIO.IN)
+
+
 
 # Intentar importar smbus/smbus2. Si falla, el bus será None y la comunicación se simulará.
 try:
@@ -27,31 +29,36 @@ except ImportError:
         print("AVISO: smbus/smbus2 no encontrado. La comunicación I2C será simulada.")
 
 
+
+
 # ---------------- Variables globales de envio ----------------
 
 # NOTA: Estas variables serán actualizadas por accion_destino,
 # pero se accederán dentro de la clase usando 'global'.
+N_listas = 0
+Posicion = 0
 Posicion_pasos = []
 Activacion_servo = 0
 permiso = 0 # Linea 332 masomenos
-iniciador = 2 # Se encarga de establecer como primer valor de la lista en 2 para evitar errores en la comunicacion
+iniciador = 0 # Se encarga de establecer como primer valor de la lista en 2 para evitar errores en la comunicacion
+comenzar = 0
+Orden_trayectorias = []
+TrayectoriaA = []
+TrayectoriaB = []
+TrayectoriaC = []   
+
 
 class VentanaPrincipal(QMainWindow):
-    def stm_canica_callback (self, channel):
-            try:
-                    conteo = self.bus.read_byte (self.I2C_ADDRESS)
-                    if conteo is not None: 
-                            self.num_canicas = int (conteo)
-                            print(f"🔔 INTERRUPCIÓN DETECTADA: Nuevo valor de canicas leído: {self.num_canicas}")
-                
-                    else:
-                        self.num_canicas = None
-                        print("⚠️ Lectura de canicas fallida o nula.")
 
-            except OSError as e:
-                self.num_canicas = None
-                print(f"❌ Error I2C en la interrupción de canicas: {e}. Valor establecido a None.")
-    
+    def manejar_ejecucion_final(self, seleccion_sensores):
+        print(seleccion_sensores)
+        global Orden_trayectorias
+        self.aplicar_bloqueo_total(True)
+        self.boton_listo.setEnabled(False)
+        self.boton_listo.setStyleSheet(self.difuminado())
+        Orden_trayectorias = seleccion_sensores
+        self.lista_master()
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Proyecto MT-7003 - Visualizador")
@@ -131,6 +138,7 @@ class VentanaPrincipal(QMainWindow):
         self.Boton_TR.setStyleSheet(self.seleccionable())
         botones_layout.addWidget(self.Boton_TR)
         self.layout.addLayout(botones_layout)
+        self.Boton_TR.clicked.connect(self.bloquear_TR)
 
         # Botón Atrás (rojo)
         self.boton_atras = QPushButton("Atrás")
@@ -154,31 +162,33 @@ class VentanaPrincipal(QMainWindow):
         self.boton_atras.hide()
 
         # Barra de simulación de señal externa (solo tiempo real)
-        barra_senal = QHBoxLayout()
-        barra_senal.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.entrada_senal_indicador = QLineEdit()
-        self.entrada_senal_indicador.setPlaceholderText("Valor Indicador (-3..9, 99)...")
-        self.entrada_senal_indicador.setFixedWidth(200)
-        self.entrada_senal_indicador.setStyleSheet("background-color: #FFFFFF; color: #303030; border: 1px solid #D0D0D0;")
+        #barra_senal = QHBoxLayout()
+        #barra_senal.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        #self.entrada_senal_indicador = QLineEdit()
+        #self.entrada_senal_indicador.setPlaceholderText("Valor Indicador (-3..9, 99)...")
+        #self.entrada_senal_indicador.setFixedWidth(200)
+        #self.entrada_senal_indicador.setStyleSheet("background-color: #FFFFFF; color: #303030; border: 1px solid #D0D0D0;")
         
-        self.entrada_senal_canicas = QLineEdit()
-        self.entrada_senal_canicas.setPlaceholderText("Num Canicas (0-99)...")
-        self.entrada_senal_canicas.setFixedWidth(150)
-        self.entrada_senal_canicas.setStyleSheet("background-color: #FFFFFF; color: #303030; border: 1px solid #D0D0D0;")
+        #self.entrada_senal_canicas = QLineEdit()
+        #self.entrada_senal_canicas.setPlaceholderText("Num Canicas (0-99)...")
+        #self.entrada_senal_canicas.setFixedWidth(150)
+        #self.entrada_senal_canicas.setStyleSheet("background-color: #FFFFFF; color: #303030; border: 1px solid #D0D0D0;")
         
-        self.boton_aplicar_data = QPushButton("Aplicar Data Externa")
-        self.boton_aplicar_data.setFixedSize(180, 40)
-        self.boton_aplicar_data.setStyleSheet(self.seleccionable())
+        self.comenzar = QPushButton("Comenzar")
+        self.comenzar.setFixedSize(180, 40)
+        self.comenzar.setStyleSheet(self.seleccionable())
+        self.comenzar.clicked.connect(self.accion_comenzar)
+        self.layout.addWidget(self.comenzar, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        barra_senal.addWidget(self.entrada_senal_indicador)
-        barra_senal.addWidget(self.entrada_senal_canicas)
-        barra_senal.addWidget(self.boton_aplicar_data)
-        self.layout.addLayout(barra_senal)
+        #barra_senal.addWidget(self.entrada_senal_indicador)
+        #barra_senal.addWidget(self.entrada_senal_canicas)
+        #barra_senal.addWidget(self.boton_aplicar_data)
+        #self.layout.addLayout(barra_senal)
         
         # Ocultar campos y botón de simulación
-        self.entrada_senal_indicador.hide()
-        self.entrada_senal_canicas.hide()
-        self.boton_aplicar_data.hide()
+       # self.entrada_senal_indicador.hide()
+        #self.entrada_senal_canicas.hide()
+        self.comenzar.hide()
 
 
         # Cuadro de Número de Canicas
@@ -237,7 +247,25 @@ class VentanaPrincipal(QMainWindow):
         self.boton_destino.setStyleSheet(self.seleccionable())
         self.boton_destino.clicked.connect(self.accion_destino)
         self.malla.addWidget(self.boton_destino, 4, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        self.boton_listo = QPushButton("Listo")
+        self.boton_listo.setFixedHeight(50)
+        self.boton_listo.setStyleSheet(self.difuminado())
+        self.boton_listo.setEnabled(False)
+        self.boton_listo.clicked.connect(self.accion_listo)
+        self.malla.addWidget(self.boton_listo, 4, 2, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
 
+        self.layout_vertical_principal = QVBoxLayout()
+
+        #self.boton_comenzar = QPushButton("Comenzar")
+        #self.boton_comenzar.setFixedHeight(50)
+        #self.boton_comenzar.setStyleSheet(self.seleccionable())
+        #self.boton_comenzar.clicked.connect(self.accion_destino)
+        #self.malla.addWidget(self.boton_comenzar, 0, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        #self.layout_vertical_principal.addWidget(self.boton_comenzar)
+        #self.layout_vertical_principal.addLayout(self.malla)
+        #self.setLayout(self.layout_vertical_principal)
         contenedor_matriz.addWidget(self.grid_widget, alignment=Qt.AlignmentFlag.AlignLeft)
         # ---------------- FIN Matriz de Botones ----------------
 
@@ -336,6 +364,7 @@ class VentanaPrincipal(QMainWindow):
 
                 try:
                     global permiso
+                    global posicion
                     
                     # Iterar sobre la trayectoria completa (incluyendo Activacion_servo)
                     for dato in datos_a_enviar:
@@ -355,9 +384,19 @@ class VentanaPrincipal(QMainWindow):
                         
                         try:
                             respuesta = self.bus.read_byte(self.I2C_ADDRESS)
+                            if respuesta == 255 :
+                                    respuesta = -1
+                            elif respuesta == 254:
+                                    respuesta = -2
+                            elif respuesta == 253:
+                                    respuesta = -3
+                            if dato == 0:
+                                  respuesta = 0  
                             t1 = time.time()
                             tiempo_res = (t1-t0)
-
+                            self.actualizar_estado_indicador(respuesta)
+                            QApplication.processEvents()
+                            
                             if respuesta == 1:
                                 print("✅ STM32 confirmó recepción del dato. Mueve a izquierda")
                                 print (respuesta)
@@ -397,13 +436,13 @@ class VentanaPrincipal(QMainWindow):
                 return # Salida 1: Si no hay bus, salimos.
 
             # Mapear el texto a byte
+            global Posicion
             datos_a_enviar = self._mapear_a_byte(texto)
+            
             print (datos_a_enviar)
             
             # *Nota: Si quieres que S1, S2, S3 mapeen a algo diferente a 0, cambia esto:*
-            if datos_a_enviar < 0:
-                 datos_a_enviar = 2 #abs(datos_a_enviar) # Ejemplo: -1 -> 1
-            
+
             print(f"INICIANDO ENVÍO DE PASO I2C: {datos_a_enviar}")
 
             try:
@@ -421,13 +460,24 @@ class VentanaPrincipal(QMainWindow):
                 # B. LECTURA DE RESPUESTA
                 try:
                     respuesta = self.bus.read_byte(self.I2C_ADDRESS)
+                    if respuesta == 255:
+                            respuesta = -1
+                    elif respuesta == 254:
+                            respuesta = -2
+                    elif respuesta == 253:
+                            respuesta = -3
+                    Posicion = respuesta
                     t1 = time.time()
                     tiempo_res = (t1 - t0)
+                    
+                    
                     
                     # 2. DECIDIR EL MENSAJE Y EL LOG
                     log_msgs = {0: "Mueve a derecha", 1: "Mueve a izquierda", 2: "Mueve a abajo", 3: "Mueve a destino"}
                     msg = log_msgs.get(respuesta, f"Respuesta desconocida: {respuesta}")
                     print(f"✅ STM32 confirmó. {msg}. Tiempo: {tiempo_res:.4f}s. Respuesta: {respuesta}")
+                    self.actualizar_estado_indicador(Posicion)
+                    QApplication.processEvents()
 
                 except OSError as e:
                     # Si falla la lectura, imprimimos el error, pero continuamos para desbloquear,
@@ -536,6 +586,8 @@ class VentanaPrincipal(QMainWindow):
         para encender/apagar el indicador (LED).
         Valores válidos: -1, -2, -3, 1-9, 99.
         """
+        print (valor)
+        
         # Reiniciar todos los indicadores a gris
         for label in self.indicador_labels.values():
             label.setStyleSheet(self.estilo_indicador_gris())
@@ -559,23 +611,23 @@ class VentanaPrincipal(QMainWindow):
         Llama a actualizar_estado_indicador() y actualizar_estado_canicas().
         """
         # 1. Actualizar Indicador y Canicas (Esto simula el feedback del micro)
-        valor_indicador_str = self.entrada_senal_indicador.text().strip()
-        valor_canicas_str = self.entrada_senal_canicas.text().strip()
-        try:
-            if valor_indicador_str:
-                self.actualizar_estado_indicador(int(valor_indicador_str))
-            else:
-                self.actualizar_estado_indicador(0) # Valor 0 apaga todos los indicadores
-        except ValueError:
-            print("ERROR: El valor introducido para el indicador no es un entero válido.")
+       # valor_indicador_str = self.entrada_senal_indicador.text().strip()
+        #valor_canicas_str = self.entrada_senal_canicas.text().strip()
+        #try:
+         #   if valor_indicador_str:
+          #      self.actualizar_estado_indicador(int(valor_indicador_str))
+          #  else:
+           #     self.actualizar_estado_indicador(0) # Valor 0 apaga todos los indicadores
+       # except ValueError:
+        #    print("ERROR: El valor introducido para el indicador no es un entero válido.")
 
-        try:
-            if valor_canicas_str:
-                self.actualizar_estado_canicas(int(valor_canicas_str))
-            else:
-                self.actualizar_estado_canicas(None) # Pone 'Sin dato'
-        except ValueError:
-            print("ERROR: El valor introducido para el contador de canicas no es un entero válido.")
+        #try:
+         #   if valor_canicas_str:
+          #      self.actualizar_estado_canicas(int(valor_canicas_str))
+           # else:
+            #    self.actualizar_estado_canicas(None) # Pone 'Sin dato'
+        #except ValueError:
+         #   print("ERROR: El valor introducido para el contador de canicas no es un entero válido.")
 
         # 2. Lógica de Desbloqueo en modo Tiempo Real
         if self.modo == "tiempo_real":
@@ -629,31 +681,35 @@ class VentanaPrincipal(QMainWindow):
         self.Boton_inicio.show()
         self.Boton_TR.show()
         self.boton_atras.hide()
-        self.entrada_senal_indicador.hide()
-        self.entrada_senal_canicas.hide()
-        self.boton_aplicar_data.hide()
+        #self.entrada_senal_indicador.hide()
+        #self.entrada_senal_canicas.hide()
+        self.comenzar.hide()
         
         self.reset_estado_logico() # <-- CORRECCIÓN: Llamar al reseteo lógico
 
     def configurar_estado_inicial_matriz(self):
         """Establece el estado inicial: S1-S3 y Destino activos, números 1-9 inactivos."""
-        self.aplicar_bloqueo_total(False) # 1. Desbloquea todo (estilo 'seleccionable')
-        
-        # 2. Bloquear solo las filas de números (1, 2, 3)
-        for f in (1, 2, 3):
-            for c in (0, 1, 2):
-                btn = self.botones[f][c]
-                btn.setEnabled(False)
-                btn.setStyleSheet(self.difuminado())
-        
-        # 3. Garantizar que la fila de sensores S1-S3 (Fila 0) está activa (redundante, pero explícito)
-        for c in (0, 1, 2):
-            self.botones[0][c].setEnabled(True)
-            self.botones[0][c].setStyleSheet(self.seleccionable())
+        global comenzar
+        if comenzar == 0 and self.modo == "tiempo_real":
+                self.aplicar_bloqueo_total
+        else:
+                self.aplicar_bloqueo_total(False) # 1. Desbloquea todo (estilo 'seleccionable')
+                
+                # 2. Bloquear solo las filas de números (1, 2, 3)
+                for f in (1, 2, 3):
+                    for c in (0, 1, 2):
+                        btn = self.botones[f][c]
+                        btn.setEnabled(False)
+                        btn.setStyleSheet(self.difuminado())
+                
+                # 3. Garantizar que la fila de sensores S1-S3 (Fila 0) está activa (redundante, pero explícito)
+                for c in (0, 1, 2):
+                    self.botones[0][c].setEnabled(True)
+                    self.botones[0][c].setStyleSheet(self.seleccionable())
 
-        # 4. Garantizar que Destino está activo
-        self.boton_destino.setEnabled(True)
-        self.boton_destino.setStyleSheet(self.seleccionable())
+                # 4. Garantizar que Destino está activo
+                self.boton_destino.setEnabled(False)
+                self.boton_destino.setStyleSheet(self.difuminado())
 
 
     def cambiar_modo(self, modo):
@@ -674,19 +730,23 @@ class VentanaPrincipal(QMainWindow):
         
         # Configuración específica por modo
         if modo == "tiempo_real":
+            self.aplicar_bloqueo_total(True)
             # Mostrar campos de simulación en Tiempo Real
-            self.entrada_senal_indicador.show()
-            self.entrada_senal_canicas.show()
-            self.boton_aplicar_data.show()
+            #self.entrada_senal_indicador.show()
+            #self.entrada_senal_canicas.show()
+            #self.boton_aplicar_data.show()
+            self.comenzar.show()
             
             self.esperando_senal = False 
             self.bloqueado_esperando_paso = False
+            
             print("INFO: Modo Tiempo Real iniciado. Se espera selección de S1, S2, o S3.")
         else: # modo trayectoria
             # Ocultar campos de simulación en Trayectoria
-            self.entrada_senal_indicador.hide()
-            self.entrada_senal_canicas.hide()
-            self.boton_aplicar_data.hide()
+            #self.entrada_senal_indicador.hide()
+           # self.entrada_senal_canicas.hide()
+            self.comenzar.hide()
+           # self.boton_comenzar.hide()
             self.esperando_senal = False
             self.bloqueado_esperando_paso = False
             print("INFO: Modo Trayectoria iniciado. Se espera selección de S1, S2, o S3.")
@@ -706,6 +766,8 @@ class VentanaPrincipal(QMainWindow):
         dato_byte = self._mapear_a_byte(texto) 
 
         if self.modo == "tiempo_real":
+            self.actualizar_estado_indicador(Posicion)
+            QApplication.processEvents()
             # Si estamos esperando la señal externa (después de S o Número), ignorar el click.
             if self.bloqueado_esperando_paso:
                 print("INFO: En modo Tiempo Real, la matriz está bloqueada. Presione 'Aplicar Data Externa' para desbloquear el siguiente paso.")
@@ -715,11 +777,12 @@ class VentanaPrincipal(QMainWindow):
             # Nota: En TR, solo guardamos el último byte para saber qué desbloquear después, no la lista completa
             if dato_byte != 0:
                 self.trayectoria = [dato_byte]
-            self.enviar_trayectoria_i2c_TR(str(self.trayectoria))
+            #self.enviar_trayectoria_i2c_TR(str(self.trayectoria))
             #print(f"INFO: Modo Tiempo Real - Comando de paso registrado: {dato_byte}")
             
             # 2. Lógica de estado y bloqueo
             if fila == 0: # S1..S3 selection
+                
                 self.s_seleccionada = columna
                 self.last_pressed_coords = "S"
                 
@@ -772,18 +835,32 @@ class VentanaPrincipal(QMainWindow):
                 else:
                     self.boton_destino.setEnabled(False)
                     self.boton_destino.setStyleSheet(self.difuminado())
+                
+            #print (self.trayectoria[-1])
 
             # Mensaje de registro (Muestra la lista de bytes)
             print(f"Selección registrada. Trayectoria actual (BYTES): {self.trayectoria}")
+
+            self.boton_listo.setEnabled(False)
+            self.boton_listo.setStyleSheet(self.difuminado())
             
             if self.modo == "tiempo_real" and len(self.trayectoria) > 1:
                 self.trayectoria = [self.trayectoria[-1]]
+
+        
+
+    def bloquear_TR(self):
+            print("DEBUG: La función bloquear_TR ha sido llamada.")
+            self.aplicar_bloqueo_total(True)
+
+
 
 
     def calcular_adyacentes(self, fila, col):
         """Calcula coordenadas de celdas adyacentes (abajo, izquierda, derecha) en la matriz de 4x3."""
         coords = []
         # Izquierda
+        
         if col - 1 >= 0:
             coords.append((fila, col - 1))
         # Derecha
@@ -794,9 +871,11 @@ class VentanaPrincipal(QMainWindow):
             coords.append((fila + 1, col))
         return coords
 
+
     def habilitar_solo(self, coords_habilitadas):
         """Bloquea todos los números (1-9) y solo habilita los que están en coords_habilitadas."""
         coords = set(coords_habilitadas)
+        
         for f in (1, 2, 3):
             for c in (0, 1, 2):
                 b = self.botones[f][c]
@@ -808,6 +887,7 @@ class VentanaPrincipal(QMainWindow):
                     b.setStyleSheet(self.difuminado())
 
     def bloquear_filas_hasta(self, fila_limite):
+        
         """Bloquea filas de la 0 hasta la fila_limite (inclusive)."""
         for f in range(0, fila_limite + 1):
             for c in (0, 1, 2):
@@ -834,13 +914,41 @@ class VentanaPrincipal(QMainWindow):
 
 
     def registrar_seleccion(self, dato_byte):
-        """Guarda el valor numérico (byte) en la lista de trayectoria."""
-        self.trayectoria.append(dato_byte)
+        global N_listas
+        global TrayectoriaA
+        global TrayectoriaB
+        global TrayectoriaC
+        if N_listas == 0:
+            TrayectoriaA.append(dato_byte)
+        elif N_listas == 1:
+            TrayectoriaB.append(dato_byte)
+        elif N_listas == 2:
+            TrayectoriaC.append(dato_byte)
+        print(TrayectoriaA)
+        print(TrayectoriaB)
+        print(TrayectoriaC)
         
+    def accion_listo(self):
+        self.ventana_opciones = VentanaOpcionesEjecutar(parent = self)
+        self.ventana_opciones.ejecutar_seleccionado.connect(self.manejar_ejecucion_final)
+        self.ventana_opciones.exec()
+        self.ventana_opciones = None
+
+
+    def accion_comenzar (self):
+        global comenzar
+        comenzar = 1
+        self.comenzar.setEnabled(False)
+        self.comenzar.setStyleSheet(self.difuminado())
+        self.configurar_estado_inicial_matriz()
+        #time.sleep(5)
+        self.enviar_trayectoria_i2c_TR("0")
+            
 
     # ---------------- Destino y Reiniciar ----------------
 
     def accion_destino(self):
+          
         """
         Finaliza la selección de trayectoria o registra la acción en tiempo real.
         """
@@ -848,57 +956,187 @@ class VentanaPrincipal(QMainWindow):
         self.registrar_seleccion(99)
         
         # 2. Bloquear toda la matriz
-        self.aplicar_bloqueo_total(True)
         self.last_pressed_coords = "Destino"
 
+        
         if self.modo == "trayectoria":
             global Posicion_pasos
             global Activacion_servo
+            global N_listas
+            self.boton_listo.setEnabled(True)
+            self.boton_listo.setStyleSheet(self.seleccionable())
+
             
+
+            if N_listas < 2:
+                N_listas += 1
+                self.aplicar_bloqueo_total(False)
+                self.configurar_estado_inicial_matriz()
+            else :
+                self.aplicar_bloqueo_total(True)
+                print("INFO: Límite de 3 listas alcanzado. Matriz bloqueada.")
             # Asignar los valores a las variables globales para la comunicación I2C
             # El primer elemento es el byte del sensor S (-1, -2, o -3)
-            Activacion_servo = self.trayectoria [0] 
+            #Activacion_servo = self.trayectoria [0] 
             # El resto son los pasos (nodos) incluyendo el Destino (99)
-            Posicion_pasos = self.trayectoria[1:]
+            #Posicion_pasos = self.trayectoria[1:]
+            self.boton_listo.setEnabled(True)
+            self.boton_listo.setStyleSheet(self.seleccionable())
+            
             
             # TRAYECTORIA COMPLETA REGISTRADA
             print(f"INFO: Trayectoria completa registrada: {Posicion_pasos}.")
             print(f"INFO: Servo a activar: {Activacion_servo}.")
             
             # 3. LLAMAR A LA FUNCIÓN DE COMUNICACIÓN AQUÍ
-            self.enviar_trayectoria_i2c() # <-- LLAMADA DE ACCIÓN
+            #self.enviar_trayectoria_i2c() # <-- LLAMADA DE ACCIÓN
             
         else: # Modo Tiempo Real
             # Lógica de tiempo real: el paso 'Destino' fue enviado, ahora espera la señal externa
-            byte_a_enviar = self._mapear_a_byte(99)
-            self.bus.write_byte(self.I2C_ADDRESS, byte_a_enviar)
+            #self.bus.write_byte(self.I2C_ADDRESS, byte_a_enviar)
+            self.enviar_trayectoria_i2c_TR("Destino")
+            #print (f"Se envio {byte_a_enviar}")
             self.bloqueado_esperando_paso = True
             print("INFO: Modo Tiempo Real - Comando DESTINO registrado. Matriz bloqueada, esperando señal externa.")
-            
+        
+
+    #def listo_activar(self):
+     #   if self.trayectoria [-1] == str(99):
+      #          self.boton_listo.setEnabled(True)
+       #         self.boton_listo.setStyleSheet(self.seleccionable())
+       # else:
+        #    self.boton_listo.setEnabled(False)
+           # self.boton_listo.setStyleSheet(self.difuminado())
+
+    def lista_master(self):
+        self.aplicar_bloqueo_total(True)
+        self.boton_listo.setEnabled(False)
+        self.boton_listo.setStyleSheet(self.difuminado())
+        self.trayectoria_master = []
+        for orden in Orden_trayectorias:
+            if orden == "S1":
+                self.trayectoria_master.append(TrayectoriaA)
+            elif orden == "S2":
+                self.trayectoria_master.append(TrayectoriaB)
+            elif orden == "S3":
+                self.trayectoria_master.append(TrayectoriaC)
+
+        for sublista in self.trayectoria_master:
+            self.trayectoria.extend(sublista)
+
+        print (self.trayectoria)
+        self.enviar_trayectoria_i2c()
+        time. sleep (2)
+        self.configurar_estado_inicial_matriz()
+
     def accion_reiniciar(self):
         """Reinicia el estado lógico y la matriz de botones."""
+        global comenzar
+        comenzar = 0
+        if self.modo == "tiempo_real":
+                self.configurar_estado_inicial_matriz()
+                self.comenzar.setStyleSheet(self.seleccionable())
+                self.comenzar.setEnabled (True)
+        
         self.reset_estado_logico()
         self.configurar_estado_inicial_matriz()
         self.actualizar_estado_indicador(0)
         self.actualizar_estado_canicas(None)
+        self.boton_listo.setEnabled(False)
+        self.boton_listo.setStyleSheet(self.difuminado())
+
+        
+                
         print("INFO: Sistema reiniciado. Se espera selección de S1, S2, o S3.")
 
     def reset_estado_logico(self):
         """Reinicia todas las variables de estado lógico a su valor por defecto."""
         global Posicion_pasos
         global Activacion_servo
-        
+        global N_listas
+        global comenzar
+        N_listas = 0
+        comenzar = 0
+        global iniciador
+        iniciador = 0
+        global permiso
+        permiso = 0
+        global Posicion
         Posicion_pasos = []
         Activacion_servo = 0
         self.trayectoria = []
+        Posicion = 0
         self.s_seleccionada = None
         self.num_canicas = None
         self.esperando_senal = False
         self.bloqueado_esperando_paso = False
         self.last_pressed_coords = None
+        global Orden_trayectorias
+        Orden_trayectorias = []
 
 
 # ---------------- Ejecución ----------------
+class VentanaOpcionesEjecutar(QDialog):
+    """Ventana emergente que permite seleccionar S1, S2, o S3 una vez y ejecutar."""
+    
+    # Señal para notificar a la ventana principal cuando se presiona Ejecutar
+    ejecutar_seleccionado = pyqtSignal(list) 
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Opciones de Ejecución")
+        self.setFixedSize(300, 200)
+        
+        self.seleccion = [] # Almacena los valores de las selecciones S1/S2/S3
+        
+        layout = QVBoxLayout(self)
+
+        # 1. Contenedor Horizontal para S1, S2, S3
+        h_layout = QHBoxLayout()
+        
+        # Diccionario para guardar referencias a los botones S1-S3
+        self.botones_s = {} 
+        
+        for i in range(1, 4):
+            nombre_btn = f"S{i}"
+            btn = QPushButton(nombre_btn)
+            btn.clicked.connect(lambda _, n=nombre_btn: self.seleccionar_sensor(n))
+            btn.setStyleSheet(parent.seleccionable()) # Reutiliza el estilo de la ventana principal
+            btn.setFixedSize(60, 40)
+            h_layout.addWidget(btn)
+            self.botones_s[nombre_btn] = btn
+            
+        layout.addLayout(h_layout)
+        
+        # 2. Botón Ejecutar
+        self.boton_ejecutar = QPushButton("Ejecutar")
+        self.boton_ejecutar.setStyleSheet(parent.seleccionable())
+        self.boton_ejecutar.setFixedSize(200, 40)
+        self.boton_ejecutar.clicked.connect(self.ejecutar_y_cerrar)
+        self.boton_ejecutar.setEnabled(False) # Inicia deshabilitado
+        layout.addWidget(self.boton_ejecutar, alignment=Qt.AlignmentFlag.AlignCenter)
+
+    def seleccionar_sensor(self, nombre_btn):
+        """Maneja el click en S1, S2, o S3."""
+        if nombre_btn not in self.seleccion:
+            self.seleccion.append(nombre_btn)
+            
+            # Deshabilitar el botón recién presionado
+            self.botones_s[nombre_btn].setEnabled(False)
+            self.botones_s[nombre_btn].setStyleSheet(self.parent().difuminado())
+            
+            print(f"DEBUG: Sensor {nombre_btn} seleccionado. Selección actual: {self.seleccion}")
+
+        # Habilitar el botón "Ejecutar" si se ha seleccionado al menos un sensor
+        if self.seleccion:
+            self.boton_ejecutar.setEnabled(True)
+            self.boton_ejecutar.setStyleSheet(self.parent().seleccionable())
+
+    def ejecutar_y_cerrar(self):
+        """Emite la señal y cierra la ventana."""
+        # Se asume que quieres enviar la lista de sensores seleccionados
+        self.ejecutar_seleccionado.emit(self.seleccion)
+        self.accept() # Cierra la ventana (QDialog.accept())
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
